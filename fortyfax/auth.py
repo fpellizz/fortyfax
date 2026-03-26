@@ -1,6 +1,7 @@
 """SAML/SSO authentication via WebKitGTK webview."""
 
 import logging
+import os
 from urllib.parse import urlparse
 
 import gi
@@ -12,6 +13,24 @@ gi.require_version("WebKit", "6.0")
 from gi.repository import Adw, GLib, Gtk, WebKit
 
 log = logging.getLogger(__name__)
+
+# Persistent WebKit session directories
+_DATA_DIR = os.path.join(GLib.get_user_data_dir(), "fortyfax", "webdata")
+_CACHE_DIR = os.path.join(GLib.get_user_cache_dir(), "fortyfax", "webcache")
+
+# Shared network session (singleton, persists cookies across auth windows)
+_network_session: WebKit.NetworkSession | None = None
+
+
+def _get_network_session() -> WebKit.NetworkSession:
+    """Get or create a persistent WebKit network session."""
+    global _network_session
+    if _network_session is None:
+        os.makedirs(_DATA_DIR, exist_ok=True)
+        os.makedirs(_CACHE_DIR, exist_ok=True)
+        _network_session = WebKit.NetworkSession.new(_DATA_DIR, _CACHE_DIR)
+        log.info("Persistent WebKit session: data=%s cache=%s", _DATA_DIR, _CACHE_DIR)
+    return _network_session
 
 
 class SAMLAuthWindow(Adw.Window):
@@ -58,14 +77,19 @@ class SAMLAuthWindow(Adw.Window):
         self._status_label.add_css_class("dim-label")
         header.set_title_widget(self._status_label)
 
-        # WebView
-        self._webview = WebKit.WebView()
+        # WebView with persistent session (remembers SSO login cookies)
+        self._webview = WebKit.WebView(network_session=_get_network_session())
 
         # Configure webview settings
         settings = self._webview.get_settings()
         settings.set_enable_javascript(True)
         settings.set_enable_developer_extras(False)
-        settings.set_user_agent_with_application_details("Fortyfax", "1.0")
+        # Mimic FortiClient User-Agent to bypass host-check requirements
+        settings.set_property(
+            "user-agent",
+            "Mozilla/5.0 (Linux) AppleWebKit/537.36 (KHTML, like Gecko) "
+            "FortiClient/7.0 Chrome/120.0.0.0 Safari/537.36",
+        )
 
         # Connect signals
         self._webview.connect("load-changed", self._on_load_changed)

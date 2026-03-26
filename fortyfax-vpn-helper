@@ -1,0 +1,47 @@
+#!/bin/bash
+# Helper script for fortyfax - runs as root via pkexec.
+# Usage:
+#   fortyfax-vpn-helper start [openfortivpn args...]
+#   fortyfax-vpn-helper stop <PID>
+#   fortyfax-vpn-helper kill <PID>
+set -euo pipefail
+
+ACTION="${1:-}"
+shift || true
+
+case "$ACTION" in
+    start)
+        exec openfortivpn "$@"
+        ;;
+    stop)
+        PID="${1:-}"
+        if [[ -z "$PID" ]]; then
+            echo "Usage: fortyfax-vpn-helper stop <PID>" >&2
+            exit 1
+        fi
+        # Verify it's actually an openfortivpn process
+        if [[ -f "/proc/$PID/comm" ]] && [[ "$(cat /proc/$PID/comm)" == "openfortivpn" ]]; then
+            kill -SIGTERM "$PID"
+        else
+            echo "PID $PID is not an openfortivpn process" >&2
+            exit 1
+        fi
+        ;;
+    kill)
+        PID="${1:-}"
+        if [[ -z "$PID" ]]; then
+            echo "Usage: fortyfax-vpn-helper kill <PID>" >&2
+            exit 1
+        fi
+        if [[ -f "/proc/$PID/comm" ]] && [[ "$(cat /proc/$PID/comm)" == "openfortivpn" ]]; then
+            kill -9 "$PID"
+        else
+            echo "PID $PID is not an openfortivpn process" >&2
+            exit 1
+        fi
+        ;;
+    *)
+        echo "Usage: fortyfax-vpn-helper {start|stop|kill} [args...]" >&2
+        exit 1
+        ;;
+esac

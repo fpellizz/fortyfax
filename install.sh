@@ -64,11 +64,15 @@ echo
 echo "Installazione in ${INSTALL_DIR}..."
 mkdir -p "${INSTALL_DIR}"
 cp -r "${APP_DIR}/fortyfax" "${INSTALL_DIR}/"
+cp -r "${APP_DIR}/icons" "${INSTALL_DIR}/"
 cp "${APP_DIR}/fortyfax-bin" "${INSTALL_DIR}/"
+cp "${APP_DIR}/fortyfax-vpn-helper" "${INSTALL_DIR}/"
+chmod 755 "${INSTALL_DIR}/fortyfax-vpn-helper"
 
-# Create symlink
+# Create symlinks
 echo "Creazione link ${BIN_LINK}..."
 ln -sf "${INSTALL_DIR}/fortyfax-bin" "${BIN_LINK}"
+ln -sf "${INSTALL_DIR}/fortyfax-vpn-helper" "/usr/local/bin/fortyfax-vpn-helper"
 
 # Create .desktop file
 echo "Creazione file .desktop..."
@@ -94,19 +98,19 @@ cat > /usr/share/polkit-1/actions/com.github.fortyfax.policy <<POLKIT
  "http://www.freedesktop.org/standards/PolicyKit/1.0/policyconfig.dtd">
 <policyconfig>
   <vendor>Fortyfax</vendor>
-  <vendor_url>https://github.com</vendor_url>
+  <vendor_url>https://stazzo@bitbucket.org/decisyon/fortyfax</vendor_url>
 
   <action id="com.github.fortyfax.run-vpn">
-    <description>Run openfortivpn VPN connection</description>
-    <description xml:lang="it">Avvia connessione VPN openfortivpn</description>
-    <message>Autenticazione richiesta per avviare la connessione VPN</message>
-    <message xml:lang="it">Autenticazione richiesta per avviare la connessione VPN</message>
+    <description>Manage openfortivpn VPN connection (start/stop)</description>
+    <description xml:lang="it">Gestisci connessione VPN openfortivpn (avvio/arresto)</description>
+    <message>Authentication required to manage VPN connection</message>
+    <message xml:lang="it">Autenticazione richiesta per gestire la connessione VPN</message>
     <defaults>
       <allow_any>auth_admin</allow_any>
       <allow_inactive>auth_admin</allow_inactive>
-      <allow_active>auth_admin_keep</allow_active>
+      <allow_active>yes</allow_active>
     </defaults>
-    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/openfortivpn</annotate>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/local/bin/fortyfax-vpn-helper</annotate>
     <annotate key="org.freedesktop.policykit.exec.allow_gui">true</annotate>
   </action>
 </policyconfig>

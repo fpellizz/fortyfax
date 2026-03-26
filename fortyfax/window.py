@@ -18,7 +18,7 @@ log = logging.getLogger(__name__)
 
 
 class MainWindow(Adw.ApplicationWindow):
-    def __init__(self, **kwargs):
+    def __init__(self, tray=None, **kwargs):
         super().__init__(
             title=__app_name__,
             default_width=520,
@@ -26,6 +26,7 @@ class MainWindow(Adw.ApplicationWindow):
             **kwargs,
         )
 
+        self._tray = tray
         self._profile_mgr = ProfileManager()
         self._connection = VPNConnection()
         self._connection.set_callbacks(
@@ -226,6 +227,33 @@ class MainWindow(Adw.ApplicationWindow):
         if check.get_active():
             self._active_profile = profile
             self._connect_btn.set_sensitive(True)
+            if self._tray:
+                self._tray.sync_selected_profile(profile)
+
+    def select_profile_by_uid(self, uid: str):
+        """Select a profile by UID (called from tray menu)."""
+        profiles = self._profile_mgr.load_all()
+        for profile in profiles:
+            if profile.uid == uid:
+                self._active_profile = profile
+                self._connect_btn.set_sensitive(True)
+                # Update radio buttons in the list
+                idx = 0
+                while True:
+                    row = self._profiles_box.get_row_at_index(idx)
+                    if row is None:
+                        break
+                    if row.get_name() == uid:
+                        # Find the check button prefix
+                        check = row.get_first_child()
+                        while check is not None:
+                            if isinstance(check, Gtk.CheckButton) and check.get_name() == uid:
+                                check.set_active(True)
+                                break
+                            check = check.get_next_sibling()
+                        break
+                    idx += 1
+                return
 
     # --- Profile CRUD ---
 
@@ -330,6 +358,8 @@ class MainWindow(Adw.ApplicationWindow):
 
     def _on_vpn_state_changed(self, state: ConnectionState, message: str):
         GLib.idle_add(self._update_ui_state, state, message)
+        if self._tray:
+            self._tray.update_state(state, message)
 
     def _on_vpn_log_line(self, line: str):
         GLib.idle_add(self._append_log_line, line)
