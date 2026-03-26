@@ -12,6 +12,9 @@ from .profile import VPNProfile
 
 log = logging.getLogger(__name__)
 
+# Resolve helper path: installed symlink or local dev copy
+_HELPER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "fortyfax-vpn-helper")
+
 
 class ConnectionState(Enum):
     DISCONNECTED = auto()
@@ -72,7 +75,7 @@ class VPNConnection:
             self._log_lines.clear()
             self._set_state(ConnectionState.CONNECTING, f"Connessione a {profile.display_host}...")
 
-            args = ["pkexec", "openfortivpn"] + profile.to_openfortivpn_args(cookie=cookie)
+            args = ["pkexec", _HELPER, "start"] + profile.to_openfortivpn_args(cookie=cookie)
             self._append_log(f"$ {' '.join(args)}")
 
             try:
@@ -162,12 +165,12 @@ class VPNConnection:
 
             self._set_state(ConnectionState.DISCONNECTING, "Disconnessione in corso...")
             try:
-                # Send SIGTERM to pkexec which forwards to openfortivpn
                 self._process.terminate()
-                # Also try to kill the openfortivpn child process
+            except PermissionError:
+                # Process runs as root via pkexec, use helper to send signal
                 try:
                     subprocess.run(
-                        ["pkexec", "kill", "-SIGTERM", str(self._process.pid)],
+                        ["pkexec", _HELPER, "stop", str(self._process.pid)],
                         timeout=5,
                         capture_output=True,
                     )
@@ -184,6 +187,15 @@ class VPNConnection:
                 return
             try:
                 self._process.kill()
+            except PermissionError:
+                try:
+                    subprocess.run(
+                        ["pkexec", _HELPER, "kill", str(self._process.pid)],
+                        timeout=5,
+                        capture_output=True,
+                    )
+                except Exception:
+                    pass
             except ProcessLookupError:
                 pass
             self._set_state(ConnectionState.DISCONNECTED, "Connessione terminata forzatamente")

@@ -12,6 +12,7 @@ from gi.repository import Adw, Gio, GLib, Gtk
 
 from . import __app_id__, __app_name__, __version__
 from .check import get_missing_deps_install_command, run_all_checks
+from .tray import TrayIcon
 from .window import MainWindow
 
 log = logging.getLogger(__name__)
@@ -24,15 +25,31 @@ class FortyfaxApp(Adw.Application):
             flags=Gio.ApplicationFlags.DEFAULT_FLAGS,
         )
         self._window = None
+        self._tray = None
 
     def do_startup(self):
         Adw.Application.do_startup(self)
         self._setup_actions()
+        try:
+            self._tray = TrayIcon(self)
+        except Exception as e:
+            log.warning("Could not initialize tray icon: %s", e)
 
     def do_activate(self):
         if self._window is None:
-            self._window = MainWindow(application=self)
+            self._window = MainWindow(application=self, tray=self._tray)
+            # When tray is active, hide window on close instead of quitting
+            if self._tray:
+                self._window.connect("close-request", self._on_window_close_request)
         self._window.present()
+
+    def _on_window_close_request(self, window):
+        window.set_visible(False)
+        return True  # prevent default close/destroy
+
+    @property
+    def tray(self):
+        return self._tray
 
     def _setup_actions(self):
         actions = {
@@ -56,7 +73,7 @@ class FortyfaxApp(Adw.Application):
             developer_name="Fortyfax",
             comments="GUI per openfortivpn con supporto SAML/SSO",
             license_type=Gtk.License.GPL_3_0,
-            website="",  # TODO: impostare URL repository quando disponibile
+            website="https://bitbucket.org/decisyon/fortyfax",
         )
         about.present(self._window)
 
@@ -92,6 +109,8 @@ class FortyfaxApp(Adw.Application):
         dialog.present(self._window)
 
     def _on_quit(self, action, param):
+        if self._tray:
+            self._tray.shutdown()
         self.quit()
 
 

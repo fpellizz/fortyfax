@@ -12,6 +12,7 @@ echo "Rimozione Fortyfax..."
 
 rm -rf "/usr/local/share/${APP_NAME}"
 rm -f "/usr/local/bin/${APP_NAME}"
+rm -f "/usr/local/bin/fortyfax-vpn-helper"
 rm -f "/usr/share/applications/${APP_NAME}.desktop"
 rm -f "/usr/share/polkit-1/actions/com.github.fortyfax.policy"
 

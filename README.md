@@ -20,6 +20,7 @@ L'applicazione wrappa `openfortivpn` fornendo:
 - **Login con username/password** classico
 - **Gestione profili** multipli con editor grafico completo
 - **Interfaccia nativa GNOME** che si integra con il desktop (GTK4 + libadwaita)
+- **Icona nel system tray** con stato connessione, menu contestuale e hide-on-close
 - **Log in tempo reale** della connessione VPN
 - **Verifica prerequisiti** con messaggi di errore esplicativi e istruzioni di fix
 
@@ -56,6 +57,11 @@ L'applicazione wrappa `openfortivpn` fornendo:
 
 - Design nativo GNOME con libadwaita
 - Stato connessione con feedback visivo (icone, spinner, banner)
+- **Icona nel system tray** (AppIndicator3):
+  - Icona che cambia in base allo stato: verde (connesso), trasparente (disconnesso), rosso (errore)
+  - Menu contestuale: stato, selezione profilo, connetti/disconnetti, mostra/nascondi, esci
+  - Chiudere la finestra la nasconde nel tray (l'app resta attiva)
+  - Compatibile con KDE Plasma, GNOME (con estensione AppIndicator), XFCE
 - Viewer log integrato con scroll automatico
 - Verifica prerequisiti accessibile dal menu
 
@@ -71,6 +77,7 @@ L'applicazione wrappa `openfortivpn` fornendo:
 | libsecret | 1.0+ | `libsecret` | Storage sicuro credenziali |
 | openfortivpn | 1.17+ | `openfortivpn` | Backend VPN |
 | PolicyKit | — | `polkit` | Elevazione privilegi per la connessione |
+| AppIndicator3 | — | `libappindicator-gtk3` | Icona nel system tray |
 | pppd | — | `ppp` | Richiesto da openfortivpn |
 
 ## Installazione
@@ -80,10 +87,10 @@ L'applicazione wrappa `openfortivpn` fornendo:
 ```bash
 # 1. Installa le dipendenze
 sudo dnf install -y openfortivpn python3-gobject gtk4 libadwaita \
-    webkitgtk6.0 libsecret polkit ppp
+    webkitgtk6.0 libsecret polkit ppp libappindicator-gtk3
 
 # 2. Clona il repository
-git clone https://github.com/YOUR_USERNAME/fortyfax.git
+git clone https://stazzo@bitbucket.org/decisyon/fortyfax.git
 cd fortyfax
 
 # 3. Installa (copia i file, crea .desktop e policy PolicyKit)
@@ -96,7 +103,7 @@ fortyfax
 ### Esecuzione senza installazione
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/fortyfax.git
+git clone https://stazzo@bitbucket.org/decisyon/fortyfax.git
 cd fortyfax
 python3 ./fortyfax-bin
 ```
@@ -183,10 +190,17 @@ Clicca **"Disconnetti"** per terminare la connessione VPN in modo pulito.
 ```
 fortyfax/
 ├── fortyfax-bin              # Launcher eseguibile
+├── fortyfax-vpn-helper       # Helper per avvio/stop openfortivpn via pkexec
 ├── install.sh                # Script di installazione di sistema
 ├── uninstall.sh              # Script di rimozione
 ├── README.md
 ├── LICENSE
+├── icons/                    # Icone applicazione e tray
+│   ├── app_icon_dark*.png     # Icona app (sfondo scuro)
+│   ├── app_icon_light*.png    # Icona app (sfondo chiaro)
+│   ├── tray_icon*.png         # Icona tray (connesso/in corso)
+│   ├── tray_icon_gray*.png    # Icona tray (disconnesso)
+│   └── notif_icon*.png        # Icona notifica/connesso
 └── fortyfax/                 # Package Python
     ├── __init__.py            # Metadati (versione, app_id)
     ├── __main__.py            # Entry point per `python -m fortyfax`
@@ -196,6 +210,8 @@ fortyfax/
     ├── connection.py          # Gestione processo openfortivpn
     ├── dialogs.py             # Dialog: editor profili, password, log viewer
     ├── profile.py             # Modello dati profili + persistenza JSON
+    ├── tray.py                # Proxy tray icon (lancia sotto-processo GTK3)
+    ├── tray_subprocess.py     # Sotto-processo GTK3 + AppIndicator3 per il tray
     └── window.py              # Finestra principale (lista profili, stato)
 ```
 
@@ -210,19 +226,20 @@ fortyfax/
 │  - Lista   │  - Editor  │   - SAML webview      │
 │    profili │  - Password│   - Cookie capture     │
 │  - Stato   │  - Log     │   - SVPNCOOKIE         │
-├────────────┴────────────┴───────────────────────┤
-│              Connection Manager                  │
-│  - Subprocess openfortivpn via pkexec           │
-│  - Monitor stdout (log + stato)                 │
-│  - Cookie/password via stdin                    │
-├─────────────────────────────────────────────────┤
+├────────────┴────────────┼───────────────────────┤
+│  Connection Manager     │   Tray Icon            │
+│  - Subprocess via pkexec│   - AppIndicator3      │
+│  - Monitor stdout       │   - Sotto-processo GTK3│
+│  - Cookie/pwd via stdin │   - JSON pipe IPC      │
+├─────────────────────────┴───────────────────────┤
 │              Profile Manager                     │
 │  - CRUD profili JSON                            │
 │  - ~/.config/fortyfax/profiles/                 │
 │  - Validazione + export config                  │
 ├─────────────────────────────────────────────────┤
 │           Sistema operativo                      │
-│  openfortivpn ─ pkexec ─ pppd ─ kernel          │
+│  fortyfax-vpn-helper ─ openfortivpn ─ pppd      │
+│  pkexec ─ PolicyKit (allow_active=yes)           │
 └─────────────────────────────────────────────────┘
 ```
 
@@ -274,7 +291,11 @@ I profili sono salvati in `~/.config/fortyfax/profiles/<uuid>.json`:
 
 ### PolicyKit
 
-Lo script `install.sh` configura una policy PolicyKit che permette di eseguire openfortivpn con privilegi elevati chiedendo la password di sistema una sola volta per sessione (`auth_admin_keep`).
+Lo script `install.sh` configura una policy PolicyKit che permette di avviare e terminare openfortivpn **senza richiesta di password** per l'utente attivo sulla sessione locale (`allow_active=yes`).
+
+Questo avviene tramite lo script helper `fortyfax-vpn-helper` che:
+- Accetta solo i comandi `start`, `stop` e `kill`
+- Verifica che il PID da terminare sia effettivamente un processo `openfortivpn`
 
 La policy viene installata in `/usr/share/polkit-1/actions/com.github.fortyfax.policy`.
 
@@ -315,6 +336,25 @@ sudo ./install.sh
 - Rotte in conflitto: prova ad attivare "Half internet routes" nel profilo
 - DNS in conflitto: prova a disattivare "Imposta DNS" nel profilo
 
+### L'icona nel system tray non appare
+
+**Problema**: L'icona tray non e visibile nel pannello.
+
+**Soluzione**:
+
+1. Verifica che AppIndicator3 sia installato:
+```bash
+sudo dnf install libappindicator-gtk3
+```
+
+2. Su GNOME, installa l'estensione "AppIndicator and KStatusNotifierItem Support":
+```bash
+sudo dnf install gnome-shell-extension-appindicator
+```
+   Dopo l'installazione, riavvia la sessione o attiva l'estensione da GNOME Extensions.
+
+Su KDE Plasma e XFCE il supporto AppIndicator e nativo.
+
 ### FortiClient vs Fortyfax
 
 FortiClient per Linux (RPM) e compilato per EL7 e non funziona su Fedora recenti a causa di:
@@ -334,12 +374,12 @@ Fortyfax risolve entrambi i problemi usando `openfortivpn` come backend.
 ### Setup ambiente di sviluppo
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/fortyfax.git
+git clone https://stazzo@bitbucket.org/decisyon/fortyfax.git
 cd fortyfax
 
 # Installa dipendenze
 sudo dnf install -y openfortivpn python3-gobject gtk4 libadwaita \
-    webkitgtk6.0 libsecret polkit ppp
+    webkitgtk6.0 libsecret polkit ppp libappindicator-gtk3
 
 # Esegui in modalita sviluppo
 python3 ./fortyfax-bin
@@ -350,7 +390,7 @@ python3 -m fortyfax.check
 
 ## Roadmap
 
-- [ ] Icona nel system tray con stato connessione
+- [x] Icona nel system tray con stato connessione
 - [ ] Auto-connect all'avvio del sistema
 - [ ] Import/export profili
 - [ ] Supporto multi-connessione simultanea

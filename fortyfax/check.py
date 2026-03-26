@@ -105,6 +105,21 @@ def check_pkexec() -> CheckResult:
     )
 
 
+def check_appindicator() -> CheckResult:
+    try:
+        import gi
+        gi.require_version("AppIndicator3", "0.1")
+        from gi.repository import AppIndicator3  # noqa: F401
+        return CheckResult(name="AppIndicator3", ok=True, message="OK")
+    except (ImportError, ValueError) as e:
+        return CheckResult(
+            name="AppIndicator3",
+            ok=False,
+            message=str(e),
+            fix="sudo dnf install libappindicator-gtk3",
+        )
+
+
 def check_pppd() -> CheckResult:
     # openfortivpn needs pppd
     for p in ["/usr/sbin/pppd", "/sbin/pppd"]:
@@ -126,6 +141,7 @@ ALL_CHECKS = [
     check_webkitgtk,
     check_libsecret,
     check_pkexec,
+    check_appindicator,
     check_pppd,
 ]
 
