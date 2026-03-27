@@ -22,6 +22,7 @@ THEME_CHOICES = {
 
 _DEFAULTS = {
     "theme": "system",
+    "notifications": True,
 }
 
 
