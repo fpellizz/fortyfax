@@ -33,6 +33,78 @@ def _get_network_session() -> WebKit.NetworkSession:
     return _network_session
 
 
+_AUTOFILL_JS = """
+(function() {
+    // Common selectors for email/username fields
+    var emailSelectors = [
+        'input[type="email"]',
+        'input[name="loginfmt"]',         // Microsoft
+        'input[name="login"]',
+        'input[name="username"]',
+        'input[name="identifier"]',       // Google
+        'input[name="userName"]',         // Okta
+        'input[name="email"]',
+        'input[id="i0116"]',             // Microsoft
+        'input[id="username"]',
+        'input[id="email"]',
+        'input[id="login"]',
+    ];
+    // Common selectors for password fields
+    var pwdSelectors = [
+        'input[type="password"]',
+        'input[name="passwd"]',           // Microsoft
+        'input[name="password"]',
+        'input[name="credentials.passcode"]', // Okta
+        'input[id="i0118"]',             // Microsoft
+        'input[id="passwordInput"]',
+    ];
+
+    var username = __AUTOFILL_USERNAME__;
+    var password = __AUTOFILL_PASSWORD__;
+    var filled = false;
+
+    function setValue(el, val) {
+        if (!el || !val) return false;
+        // Use native setter to trigger React/Angular change detection
+        var nativeSetter = Object.getOwnPropertyDescriptor(
+            window.HTMLInputElement.prototype, 'value').set;
+        nativeSetter.call(el, val);
+        el.dispatchEvent(new Event('input', {bubbles: true}));
+        el.dispatchEvent(new Event('change', {bubbles: true}));
+        return true;
+    }
+
+    function tryFill() {
+        // Try email/username
+        if (username) {
+            for (var i = 0; i < emailSelectors.length; i++) {
+                var el = document.querySelector(emailSelectors[i]);
+                if (el && el.offsetParent !== null && !el.value) {
+                    if (setValue(el, username)) { filled = true; break; }
+                }
+            }
+        }
+        // Try password
+        if (password) {
+            for (var i = 0; i < pwdSelectors.length; i++) {
+                var el = document.querySelector(pwdSelectors[i]);
+                if (el && el.offsetParent !== null && !el.value) {
+                    if (setValue(el, password)) { filled = true; break; }
+                }
+            }
+        }
+    }
+
+    // Try immediately and also after short delays (for dynamic pages)
+    tryFill();
+    if (!filled) {
+        setTimeout(tryFill, 500);
+        setTimeout(tryFill, 1500);
+    }
+})();
+"""
+
+
 class SAMLAuthWindow(Adw.Window):
     """Window that handles SAML/SSO login via embedded WebKitGTK webview.
 
@@ -43,7 +115,8 @@ class SAMLAuthWindow(Adw.Window):
     4. We detect the cookie and close the window
     """
 
-    def __init__(self, host: str, port: int = 443, realm: str = "", **kwargs):
+    def __init__(self, host: str, port: int = 443, realm: str = "",
+                 sso_username: str = "", sso_password: str = "", **kwargs):
         super().__init__(
             title="Fortyfax - Autenticazione SSO",
             default_width=900,
@@ -55,6 +128,8 @@ class SAMLAuthWindow(Adw.Window):
         self._host = host
         self._port = port
         self._realm = realm
+        self._sso_username = sso_username
+        self._sso_password = sso_password
         self._cookie: str | None = None
         self._on_auth_complete = None
         self._cookie_check_id = None
@@ -142,6 +217,11 @@ class SAMLAuthWindow(Adw.Window):
 
             self._status_label.set_label(f"Pagina caricata: {current_host}")
 
+            # Auto-fill SSO credentials on IdP login pages
+            if self._sso_username or self._sso_password:
+                if current_host != target_host:
+                    self._inject_autofill()
+
             # Always check for the SVPNCOOKIE after page load
             self._check_cookies()
 
@@ -168,6 +248,18 @@ class SAMLAuthWindow(Adw.Window):
             self._webview.load_uri(uri)
         else:
             self._finish(None)
+
+    def _inject_autofill(self):
+        """Inject JavaScript to auto-fill login form fields."""
+        import json
+
+        js = _AUTOFILL_JS.replace(
+            "__AUTOFILL_USERNAME__", json.dumps(self._sso_username)
+        ).replace(
+            "__AUTOFILL_PASSWORD__", json.dumps(self._sso_password)
+        )
+        self._webview.evaluate_javascript(js, -1, None, None, None, None, None)
+        log.debug("Auto-fill JS injected for %s", self._webview.get_uri())
 
     def _check_cookies(self):
         """Check if SVPNCOOKIE has been set."""
@@ -239,6 +331,8 @@ def authenticate_saml(
     host: str,
     port: int = 443,
     realm: str = "",
+    sso_username: str = "",
+    sso_password: str = "",
     callback=None,
 ):
     """Convenience function to start SAML auth.
@@ -248,9 +342,15 @@ def authenticate_saml(
         host: FortiGate hostname
         port: FortiGate port
         realm: SAML realm (optional)
+        sso_username: SSO email/username for auto-fill
+        sso_password: SSO password for auto-fill
         callback: Called with cookie string or None
     """
-    win = SAMLAuthWindow(host=host, port=port, realm=realm, transient_for=parent)
+    win = SAMLAuthWindow(
+        host=host, port=port, realm=realm,
+        sso_username=sso_username, sso_password=sso_password,
+        transient_for=parent,
+    )
     win.set_on_auth_complete(callback)
     win.start_auth()
     return win
