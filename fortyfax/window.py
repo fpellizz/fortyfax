@@ -324,11 +324,20 @@ class MainWindow(Adw.ApplicationWindow):
             )
             return
 
+        # Load SSO credentials for auto-fill
+        sso_username = profile.sso_username
+        sso_password = ""
+        if sso_username:
+            from .credential_store import lookup_sso_password
+            sso_password = lookup_sso_password(profile.uid) or ""
+
         authenticate_saml(
             parent=self,
             host=profile.host,
             port=profile.port,
             realm=profile.realm,
+            sso_username=sso_username,
+            sso_password=sso_password,
             callback=lambda cookie: GLib.idle_add(self._on_saml_complete, cookie, profile),
         )
 

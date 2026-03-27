@@ -24,6 +24,7 @@ class VPNProfile:
     set_routes: bool = True
     pppd_use_peerdns: bool = True
     half_internet_routes: bool = False
+    sso_username: str = ""
     extra_args: str = ""
     uid: str = field(default_factory=lambda: str(uuid.uuid4()))
 

@@ -16,7 +16,7 @@ Fortyfax nasce per risolvere un problema concreto: collegarsi a VPN Fortinet/For
 
 L'applicazione wrappa `openfortivpn` fornendo:
 
-- **Login SAML/SSO** tramite webview WebKitGTK integrata con cattura automatica del cookie `SVPNCOOKIE`
+- **Login SAML/SSO** tramite webview WebKitGTK integrata con cattura automatica del cookie `SVPNCOOKIE` e **auto-compilazione credenziali** (email/password) sul form dell'Identity Provider
 - **Login con username/password** classico
 - **Gestione profili** multipli con editor grafico completo
 - **Interfaccia nativa GNOME** che si integra con il desktop (GTK4 + libadwaita)
@@ -34,7 +34,7 @@ L'applicazione wrappa `openfortivpn` fornendo:
 
 | Metodo | Supporto | Descrizione |
 |--------|----------|-------------|
-| SAML/SSO | Completo | Webview integrata, cattura automatica SVPNCOOKIE, compatibile con qualsiasi IdP (Azure AD, Okta, Google, ecc.) |
+| SAML/SSO | Completo | Webview integrata, cattura automatica SVPNCOOKIE, auto-fill credenziali IdP, compatibile con Azure AD, Okta, Google, ecc. |
 | Username/Password | Completo | Dialog sicuro con password mascherata |
 
 ### Gestione Profili
@@ -170,6 +170,20 @@ I profili in `~/.config/fortyfax/` **non** vengono rimossi.
 5. Il cookie SVPNCOOKIE viene catturato automaticamente
 6. La connessione VPN parte in automatico
 
+### Credenziali SSO salvate
+
+Per evitare di inserire email e password ogni volta che ci si connette a un profilo SAML/SSO:
+
+1. Apri l'editor del profilo VPN (icona matita)
+2. Nella sezione **"Credenziali SSO"** inserisci:
+   - **Email / Username SSO**: l'indirizzo email usato per il login sull'IdP (es. `nome.cognome@cliente.com`)
+   - **Password SSO**: la password dell'account IdP
+3. Salva il profilo
+
+Al prossimo **"Connetti"**, la webview SSO compilerà automaticamente i campi email e password nel form di login dell'Identity Provider (Microsoft, Okta, Google, ecc.).
+
+La password è salvata nel **portachiavi di sistema** (GNOME Keyring / KDE Wallet) tramite libsecret, non in chiaro su disco.
+
 ### Connessione con password
 
 1. Seleziona il profilo con autenticazione password
@@ -210,6 +224,7 @@ fortyfax/
     ├── auth.py                # Autenticazione SAML/SSO via WebKitGTK
     ├── check.py               # Verifica prerequisiti di sistema
     ├── connection.py          # Gestione processo openfortivpn
+    ├── credential_store.py    # Storage credenziali SSO via libsecret (GNOME Keyring)
     ├── dialogs.py             # Dialog: editor profili, password, log viewer, preferenze
     ├── profile.py             # Modello dati profili + persistenza JSON
     ├── settings.py            # Impostazioni applicazione (tema, persistenza JSON)

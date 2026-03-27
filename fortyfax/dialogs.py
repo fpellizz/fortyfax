@@ -9,6 +9,7 @@ from gi.repository import Adw, Gtk
 
 from .profile import VPNProfile
 from . import settings
+from . import credential_store
 
 
 class ProfileEditorDialog(Adw.Dialog):
@@ -100,6 +101,28 @@ class ProfileEditorDialog(Adw.Dialog):
 
         main_box.append(auth_group)
 
+        # --- SSO Credentials group ---
+        self._sso_group = Adw.PreferencesGroup(
+            title="Credenziali SSO",
+            description="Compilazione automatica del form di login dell'Identity Provider",
+        )
+
+        self._sso_username_row = Adw.EntryRow(title="Email / Username SSO")
+        self._sso_username_row.set_input_purpose(Gtk.InputPurpose.EMAIL)
+        self._sso_group.add(self._sso_username_row)
+
+        self._sso_password_row = Adw.PasswordEntryRow(title="Password SSO")
+        self._sso_group.add(self._sso_password_row)
+
+        sso_info = Adw.ActionRow(
+            subtitle="Le credenziali vengono usate per compilare automaticamente "
+                     "il form di login SSO. La password è salvata nel portachiavi di sistema."
+        )
+        sso_info.add_css_class("property")
+        self._sso_group.add(sso_info)
+
+        main_box.append(self._sso_group)
+
         # --- Security group ---
         security_group = Adw.PreferencesGroup(title="Sicurezza")
 
@@ -165,6 +188,12 @@ class ProfileEditorDialog(Adw.Dialog):
         self._half_routes_switch.set_active(p.half_internet_routes)
         self._extra_args_row.set_text(p.extra_args)
 
+        # SSO credentials
+        self._sso_username_row.set_text(p.sso_username)
+        sso_pwd = credential_store.lookup_sso_password(p.uid)
+        if sso_pwd:
+            self._sso_password_row.set_text(sso_pwd)
+
         if p.auth_method == "saml":
             self._auth_saml_check.set_active(True)
         else:
@@ -175,6 +204,7 @@ class ProfileEditorDialog(Adw.Dialog):
     def _on_auth_method_changed(self, widget):
         is_password = self._auth_pass_check.get_active()
         self._username_row.set_sensitive(is_password)
+        self._sso_group.set_sensitive(not is_password)
 
     def _on_save(self, button):
         p = self._profile
@@ -190,6 +220,14 @@ class ProfileEditorDialog(Adw.Dialog):
         p.pppd_use_peerdns = self._peerdns_switch.get_active()
         p.half_internet_routes = self._half_routes_switch.get_active()
         p.extra_args = self._extra_args_row.get_text().strip()
+        p.sso_username = self._sso_username_row.get_text().strip()
+
+        # Save SSO password in keyring
+        sso_pwd = self._sso_password_row.get_text()
+        if sso_pwd:
+            credential_store.store_sso_password(p.uid, p.name, sso_pwd)
+        else:
+            credential_store.clear_sso_password(p.uid)
 
         errors = p.validate()
         if errors:
