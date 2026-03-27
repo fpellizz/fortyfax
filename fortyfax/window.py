@@ -150,6 +150,7 @@ class MainWindow(Adw.ApplicationWindow):
         from gi.repository import Gio
 
         menu = Gio.Menu()
+        menu.append("Preferenze", "app.preferences")
         menu.append("Verifica prerequisiti", "app.check-deps")
         menu.append("Informazioni", "app.about")
         return menu
