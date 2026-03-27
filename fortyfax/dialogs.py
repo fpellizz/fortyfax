@@ -8,6 +8,7 @@ gi.require_version("Adw", "1")
 from gi.repository import Adw, Gtk
 
 from .profile import VPNProfile
+from . import settings
 
 
 class ProfileEditorDialog(Adw.Dialog):
@@ -233,6 +234,46 @@ class PasswordDialog(Adw.AlertDialog):
     @property
     def password(self) -> str:
         return self._password_entry.get_text()
+
+
+class PreferencesDialog(Adw.PreferencesDialog):
+    """Application preferences dialog."""
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.set_title("Preferenze")
+
+        page = Adw.PreferencesPage(
+            title="Generali",
+            icon_name="preferences-system-symbolic",
+        )
+
+        # --- Appearance group ---
+        appearance_group = Adw.PreferencesGroup(
+            title="Aspetto",
+            description="Personalizza l'aspetto dell'applicazione",
+        )
+
+        self._theme_row = Adw.ComboRow(title="Tema", subtitle="Seleziona il tema dell'interfaccia")
+        theme_list = Gtk.StringList.new(["Sistema", "Chiaro", "Scuro"])
+        self._theme_row.set_model(theme_list)
+
+        # Set current value
+        current = settings.get("theme")
+        idx = {"system": 0, "light": 1, "dark": 2}.get(current, 0)
+        self._theme_row.set_selected(idx)
+
+        self._theme_row.connect("notify::selected", self._on_theme_changed)
+        appearance_group.add(self._theme_row)
+
+        page.add(appearance_group)
+        self.add(page)
+
+    def _on_theme_changed(self, row, pspec):
+        idx = row.get_selected()
+        theme_key = {0: "system", 1: "light", 2: "dark"}.get(idx, "system")
+        settings.set("theme", theme_key)
+        settings.apply_theme()
 
 
 class LogDialog(Adw.Dialog):

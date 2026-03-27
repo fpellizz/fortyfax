@@ -11,6 +11,7 @@ gi.require_version("Adw", "1")
 from gi.repository import Adw, Gio, GLib, Gtk
 
 from . import __app_id__, __app_name__, __version__
+from . import settings
 from .check import get_missing_deps_install_command, run_all_checks
 from .tray import TrayIcon
 from .window import MainWindow
@@ -29,6 +30,7 @@ class FortyfaxApp(Adw.Application):
 
     def do_startup(self):
         Adw.Application.do_startup(self)
+        settings.apply_theme()
         self._setup_actions()
         try:
             self._tray = TrayIcon(self)
@@ -53,6 +55,7 @@ class FortyfaxApp(Adw.Application):
 
     def _setup_actions(self):
         actions = {
+            "preferences": self._on_preferences,
             "about": self._on_about,
             "check-deps": self._on_check_deps,
             "quit": self._on_quit,
@@ -64,6 +67,13 @@ class FortyfaxApp(Adw.Application):
 
         # Keyboard shortcuts
         self.set_accels_for_action("app.quit", ["<primary>q"])
+        self.set_accels_for_action("app.preferences", ["<primary>comma"])
+
+    def _on_preferences(self, action, param):
+        from .dialogs import PreferencesDialog
+
+        dialog = PreferencesDialog()
+        dialog.present(self._window)
 
     def _on_about(self, action, param):
         about = Adw.AboutDialog(

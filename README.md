@@ -62,6 +62,8 @@ L'applicazione wrappa `openfortivpn` fornendo:
   - Menu contestuale: stato, selezione profilo, connetti/disconnetti, mostra/nascondi, esci
   - Chiudere la finestra la nasconde nel tray (l'app resta attiva)
   - Compatibile con KDE Plasma, GNOME (con estensione AppIndicator), XFCE
+- **Supporto temi Light/Dark**: selezione manuale (Chiaro, Scuro) o automatica dal sistema
+- **Preferenze applicazione** accessibili dal menu (Ctrl+,)
 - Viewer log integrato con scroll automatico
 - Verifica prerequisiti accessibile dal menu
 
@@ -208,8 +210,9 @@ fortyfax/
     ├── auth.py                # Autenticazione SAML/SSO via WebKitGTK
     ├── check.py               # Verifica prerequisiti di sistema
     ├── connection.py          # Gestione processo openfortivpn
-    ├── dialogs.py             # Dialog: editor profili, password, log viewer
+    ├── dialogs.py             # Dialog: editor profili, password, log viewer, preferenze
     ├── profile.py             # Modello dati profili + persistenza JSON
+    ├── settings.py            # Impostazioni applicazione (tema, persistenza JSON)
     ├── tray.py                # Proxy tray icon (lancia sotto-processo GTK3)
     ├── tray_subprocess.py     # Sotto-processo GTK3 + AppIndicator3 per il tray
     └── window.py              # Finestra principale (lista profili, stato)
@@ -288,6 +291,24 @@ I profili sono salvati in `~/.config/fortyfax/profiles/<uuid>.json`:
   "uid": "550e8400-e29b-41d4-a716-446655440000"
 }
 ```
+
+### Impostazioni applicazione
+
+Le impostazioni globali sono salvate in `~/.config/fortyfax/settings.json`:
+
+```json
+{
+  "theme": "system"
+}
+```
+
+Valori disponibili per `theme`:
+
+- `"system"` — segue il tema del sistema operativo (default)
+- `"light"` — forza il tema chiaro
+- `"dark"` — forza il tema scuro
+
+Le impostazioni sono accessibili dal menu hamburger > **Preferenze** (o `Ctrl+,`).
 
 ### PolicyKit
 
@@ -395,7 +416,7 @@ python3 -m fortyfax.check
 - [ ] Import/export profili
 - [ ] Supporto multi-connessione simultanea
 - [ ] Notifiche desktop (connect/disconnect)
-- [ ] Dark/light theme detection automatica
+- [x] Supporto tema Light/Dark con preferenze
 - [ ] Packaging RPM/Flatpak
 
 ## Licenza
