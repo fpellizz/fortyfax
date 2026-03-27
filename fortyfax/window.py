@@ -151,6 +151,12 @@ class MainWindow(Adw.ApplicationWindow):
 
         menu = Gio.Menu()
         menu.append("Preferenze", "app.preferences")
+
+        profiles_section = Gio.Menu()
+        profiles_section.append("Esporta profili...", "app.export-profiles")
+        profiles_section.append("Importa profili...", "app.import-profiles")
+        menu.append_section(None, profiles_section)
+
         menu.append("Verifica prerequisiti", "app.check-deps")
         menu.append("Informazioni", "app.about")
         return menu

@@ -43,6 +43,7 @@ L'applicazione wrappa `openfortivpn` fornendo:
 - Validazione campi in tempo reale
 - Configurazione completa: host, porta, realm, certificato trusted, argomenti extra
 - Salvataggio sicuro in `~/.config/fortyfax/profiles/` (formato JSON)
+- **Import/export profili** in formato JSON (dal menu hamburger)
 - Esportazione in formato config nativo openfortivpn
 
 ### Rete
@@ -196,6 +197,23 @@ La password è salvata nel **portachiavi di sistema** (GNOME Keyring / KDE Walle
 Alla prima connessione, openfortivpn mostra l'hash SHA256 del certificato del server nel log. Copia quell'hash nel campo **"Certificato trusted"** del profilo per evitare il warning alle connessioni successive.
 
 Puoi visualizzare il log cliccando l'icona terminale nella barra superiore.
+
+### Import/export profili
+
+**Esportazione**: Menu hamburger > **Esporta profili...** salva tutti i profili in un file JSON. Le password SSO **non** vengono incluse nel file esportato (rimangono nel portachiavi di sistema).
+
+**Importazione**: Menu hamburger > **Importa profili...** carica profili da un file JSON. Ogni profilo importato riceve un nuovo identificativo, quindi non sovrascrive quelli esistenti.
+
+Il formato del file e un JSON con questa struttura:
+
+```json
+{
+  "fortyfax_version": "1.4.0",
+  "profiles": [
+    { "name": "VPN Ufficio", "host": "vpn.azienda.com", "port": 443, ... }
+  ]
+}
+```
 
 ### Disconnessione
 
@@ -428,7 +446,7 @@ python3 -m fortyfax.check
 
 - [x] Icona nel system tray con stato connessione
 - [ ] Auto-connect all'avvio del sistema
-- [ ] Import/export profili
+- [x] Import/export profili
 - [ ] Supporto multi-connessione simultanea
 - [ ] Notifiche desktop (connect/disconnect)
 - [x] Supporto tema Light/Dark con preferenze

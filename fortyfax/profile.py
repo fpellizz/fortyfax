@@ -111,6 +111,53 @@ class ProfileManager:
             return True
         return False
 
+    def export_profiles(self, path: Path, profiles: list[VPNProfile] | None = None) -> int:
+        """Export profiles to a JSON file. Returns number of profiles exported."""
+        from . import __version__
+        if profiles is None:
+            profiles = self.load_all()
+        data = {
+            "fortyfax_version": __version__,
+            "profiles": [],
+        }
+        for p in profiles:
+            d = asdict(p)
+            del d["uid"]  # don't export UIDs — new ones on import
+            data["profiles"].append(d)
+        path.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+        return len(profiles)
+
+    def import_profiles(self, path: Path) -> tuple[int, list[str]]:
+        """Import profiles from a JSON file. Returns (count_imported, errors)."""
+        errors = []
+        try:
+            raw = json.loads(path.read_text())
+        except (json.JSONDecodeError, OSError) as e:
+            return 0, [f"Impossibile leggere il file: {e}"]
+
+        profiles_data = raw.get("profiles") if isinstance(raw, dict) else raw
+        if not isinstance(profiles_data, list):
+            return 0, ["Formato file non valido: atteso un array di profili"]
+
+        count = 0
+        for i, item in enumerate(profiles_data):
+            if not isinstance(item, dict):
+                errors.append(f"Profilo #{i+1}: formato non valido")
+                continue
+            item.pop("uid", None)  # force new UID
+            try:
+                fields = {k: v for k, v in item.items() if k in VPNProfile.__dataclass_fields__}
+                p = VPNProfile(**fields)
+                validation = p.validate()
+                if validation:
+                    errors.append(f"Profilo «{p.name}»: {'; '.join(validation)}")
+                    continue
+                self.save(p)
+                count += 1
+            except (TypeError, ValueError) as e:
+                errors.append(f"Profilo #{i+1}: {e}")
+        return count, errors
+
     def export_openfortivpn_config(self, profile: VPNProfile, path: Path) -> None:
         """Export profile as openfortivpn config file."""
         lines = [
