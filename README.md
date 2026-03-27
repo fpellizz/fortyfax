@@ -200,9 +200,13 @@ Puoi visualizzare il log cliccando l'icona terminale nella barra superiore.
 
 ### Import/export profili
 
-**Esportazione**: Menu hamburger > **Esporta profili...** salva tutti i profili in un file JSON. Le password SSO **non** vengono incluse nel file esportato (rimangono nel portachiavi di sistema).
+**Esportazione singolo profilo**: Nella lista profili, clicca l'icona di salvataggio (💾) accanto al profilo desiderato per esportarlo in un file JSON.
 
-**Importazione**: Menu hamburger > **Importa profili...** carica profili da un file JSON. Ogni profilo importato riceve un nuovo identificativo, quindi non sovrascrive quelli esistenti.
+**Esportazione tutti i profili**: Menu hamburger > **Esporta tutti i profili...** salva tutti i profili in un unico file JSON.
+
+Le password SSO **non** vengono incluse nei file esportati (rimangono nel portachiavi di sistema).
+
+**Importazione**: Menu hamburger > **Importa profili...** carica profili da un file JSON (sia singolo che multiplo). Ogni profilo importato riceve un nuovo identificativo, quindi non sovrascrive quelli esistenti.
 
 Il formato del file e un JSON con questa struttura:
 

@@ -7,7 +7,7 @@ import gi
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 
-from gi.repository import Adw, GLib, Gtk, Pango
+from gi.repository import Adw, Gio, GLib, Gtk, Pango
 
 from . import __app_name__, __version__
 from .connection import ConnectionState, VPNConnection
@@ -153,7 +153,7 @@ class MainWindow(Adw.ApplicationWindow):
         menu.append("Preferenze", "app.preferences")
 
         profiles_section = Gio.Menu()
-        profiles_section.append("Esporta profili...", "app.export-profiles")
+        profiles_section.append("Esporta tutti i profili...", "app.export-profiles")
         profiles_section.append("Importa profili...", "app.import-profiles")
         menu.append_section(None, profiles_section)
 
@@ -205,6 +205,13 @@ class MainWindow(Adw.ApplicationWindow):
 
         check.connect("toggled", self._on_profile_selected, profile)
         row.add_prefix(check)
+
+        # Export button
+        export_btn = Gtk.Button(icon_name="document-save-symbolic", valign=Gtk.Align.CENTER)
+        export_btn.add_css_class("flat")
+        export_btn.set_tooltip_text("Esporta profilo")
+        export_btn.connect("clicked", self._on_export_single_profile, profile)
+        row.add_suffix(export_btn)
 
         # Edit button
         edit_btn = Gtk.Button(icon_name="document-edit-symbolic", valign=Gtk.Align.CENTER)
@@ -282,6 +289,38 @@ class MainWindow(Adw.ApplicationWindow):
             if hasattr(self, "_first_check"):
                 del self._first_check
             self._refresh_profile_list()
+
+    def _on_export_single_profile(self, button, profile):
+        safe_name = profile.name.replace(" ", "_").replace("/", "_")
+        file_dialog = Gtk.FileDialog(
+            title=f"Esporta «{profile.name}»",
+            initial_name=f"fortyfax-{safe_name}.json",
+        )
+        json_filter = Gtk.FileFilter()
+        json_filter.set_name("File JSON")
+        json_filter.add_pattern("*.json")
+        filters = Gio.ListStore.new(Gtk.FileFilter)
+        filters.append(json_filter)
+        file_dialog.set_filters(filters)
+        file_dialog.save(self, None, self._on_export_single_save_response, profile)
+
+    def _on_export_single_save_response(self, dialog, result, profile):
+        from pathlib import Path
+
+        try:
+            gfile = dialog.save_finish(result)
+        except GLib.Error:
+            return  # utente ha annullato
+
+        path = Path(gfile.get_path())
+        self._profile_mgr.export_profiles(path, profiles=[profile])
+
+        msg = Adw.AlertDialog(
+            heading="Esportazione completata",
+            body=f"Profilo «{profile.name}» esportato in:\n{path}",
+        )
+        msg.add_response("ok", "OK")
+        msg.present(self)
 
     def _on_delete_profile(self, button, profile):
         dialog = Adw.AlertDialog(
