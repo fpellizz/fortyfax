@@ -305,6 +305,22 @@ class PreferencesDialog(Adw.PreferencesDialog):
         appearance_group.add(self._theme_row)
 
         page.add(appearance_group)
+
+        # --- Notifications group ---
+        notif_group = Adw.PreferencesGroup(
+            title="Notifiche",
+            description="Notifiche desktop per eventi di connessione VPN",
+        )
+
+        self._notif_switch = Adw.SwitchRow(
+            title="Notifiche desktop",
+            subtitle="Mostra notifiche per connessione, disconnessione ed errori",
+        )
+        self._notif_switch.set_active(settings.get("notifications"))
+        self._notif_switch.connect("notify::active", self._on_notif_changed)
+        notif_group.add(self._notif_switch)
+
+        page.add(notif_group)
         self.add(page)
 
     def _on_theme_changed(self, row, pspec):
@@ -312,6 +328,9 @@ class PreferencesDialog(Adw.PreferencesDialog):
         theme_key = {0: "system", 1: "light", 2: "dark"}.get(idx, "system")
         settings.set("theme", theme_key)
         settings.apply_theme()
+
+    def _on_notif_changed(self, row, pspec):
+        settings.set("notifications", row.get_active())
 
 
 class LogDialog(Adw.Dialog):

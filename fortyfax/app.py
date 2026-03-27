@@ -53,6 +53,15 @@ class FortyfaxApp(Adw.Application):
     def tray(self):
         return self._tray
 
+    def send_vpn_notification(self, title: str, body: str, icon_name: str = "network-vpn-symbolic"):
+        """Send a desktop notification if enabled in settings."""
+        if not settings.get("notifications"):
+            return
+        notification = Gio.Notification.new(title)
+        notification.set_body(body)
+        notification.set_icon(Gio.ThemedIcon.new(icon_name))
+        self.send_notification("vpn-status", notification)
+
     def _setup_actions(self):
         actions = {
             "preferences": self._on_preferences,

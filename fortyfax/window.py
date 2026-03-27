@@ -429,6 +429,8 @@ class MainWindow(Adw.ApplicationWindow):
             self._connect_btn.set_sensitive(self._active_profile is not None)
             self._disconnect_btn.set_visible(False)
             self._set_profiles_sensitive(True)
+            if message and message != "Disconnesso":
+                self._send_notification("VPN disconnessa", message, "network-offline-symbolic")
 
         elif state == ConnectionState.CONNECTING:
             self._status_icon.set_from_icon_name("network-vpn-acquiring-symbolic")
@@ -450,6 +452,7 @@ class MainWindow(Adw.ApplicationWindow):
             self._status_banner.set_title("VPN connessa")
             self._status_banner.set_revealed(True)
             GLib.timeout_add_seconds(3, lambda: self._status_banner.set_revealed(False))
+            self._send_notification("VPN connessa", message or "Tunnel attivo", "network-vpn-symbolic")
 
         elif state == ConnectionState.DISCONNECTING:
             self._status_icon.set_from_icon_name("network-vpn-acquiring-symbolic")
@@ -468,6 +471,7 @@ class MainWindow(Adw.ApplicationWindow):
             self._disconnect_btn.set_visible(False)
             self._set_profiles_sensitive(True)
             self._show_error("Errore di connessione", message)
+            self._send_notification("Errore VPN", message or "Errore di connessione", "dialog-error-symbolic")
 
         return False  # remove idle
 
@@ -491,6 +495,11 @@ class MainWindow(Adw.ApplicationWindow):
         self._log_dialog = None
 
     # --- Helpers ---
+
+    def _send_notification(self, title: str, body: str, icon_name: str):
+        app = self.get_application()
+        if app and hasattr(app, "send_vpn_notification"):
+            app.send_vpn_notification(title, body, icon_name)
 
     def _show_error(self, heading: str, body: str):
         dialog = Adw.AlertDialog(heading=heading, body=body)

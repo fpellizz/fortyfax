@@ -21,6 +21,7 @@ L'applicazione wrappa `openfortivpn` fornendo:
 - **Gestione profili** multipli con editor grafico completo
 - **Interfaccia nativa GNOME** che si integra con il desktop (GTK4 + libadwaita)
 - **Icona nel system tray** con stato connessione, menu contestuale e hide-on-close
+- **Notifiche desktop** per connessione, disconnessione ed errori (GNOME e KDE)
 - **Log in tempo reale** della connessione VPN
 - **Verifica prerequisiti** con messaggi di errore esplicativi e istruzioni di fix
 
@@ -64,7 +65,8 @@ L'applicazione wrappa `openfortivpn` fornendo:
   - Chiudere la finestra la nasconde nel tray (l'app resta attiva)
   - Compatibile con KDE Plasma, GNOME (con estensione AppIndicator), XFCE
 - **Supporto temi Light/Dark**: selezione manuale (Chiaro, Scuro) o automatica dal sistema
-- **Preferenze applicazione** accessibili dal menu (Ctrl+,)
+- **Notifiche desktop**: notifiche native per connessione stabilita, disconnessione ed errori (compatibile GNOME/KDE via Gio.Notification)
+- **Preferenze applicazione** accessibili dal menu (Ctrl+,), con toggle notifiche
 - Viewer log integrato con scroll automatico
 - Verifica prerequisiti accessibile dal menu
 
@@ -219,6 +221,15 @@ Il formato del file e un JSON con questa struttura:
 }
 ```
 
+### Notifiche desktop
+
+Fortyfax invia notifiche desktop quando:
+- La VPN si **connette** con successo
+- La VPN si **disconnette**
+- Si verifica un **errore** di connessione
+
+Le notifiche funzionano nativamente su **GNOME** e **KDE Plasma** (tramite `Gio.Notification` e xdg-desktop-portal). Possono essere disabilitate da **Preferenze > Notifiche**.
+
 ### Disconnessione
 
 Clicca **"Disconnetti"** per terminare la connessione VPN in modo pulito.
@@ -335,9 +346,12 @@ Le impostazioni globali sono salvate in `~/.config/fortyfax/settings.json`:
 
 ```json
 {
-  "theme": "system"
+  "theme": "system",
+  "notifications": true
 }
 ```
+
+Valori disponibili per `notifications`: `true` (default) o `false`.
 
 Valori disponibili per `theme`:
 
@@ -452,7 +466,7 @@ python3 -m fortyfax.check
 - [ ] Auto-connect all'avvio del sistema
 - [x] Import/export profili
 - [ ] Supporto multi-connessione simultanea
-- [ ] Notifiche desktop (connect/disconnect)
+- [x] Notifiche desktop (connect/disconnect)
 - [x] Supporto tema Light/Dark con preferenze
 - [ ] Packaging RPM/Flatpak
 
