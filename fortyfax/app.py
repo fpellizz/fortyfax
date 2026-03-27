@@ -56,6 +56,8 @@ class FortyfaxApp(Adw.Application):
     def _setup_actions(self):
         actions = {
             "preferences": self._on_preferences,
+            "export-profiles": self._on_export_profiles,
+            "import-profiles": self._on_import_profiles,
             "about": self._on_about,
             "check-deps": self._on_check_deps,
             "quit": self._on_quit,
@@ -74,6 +76,91 @@ class FortyfaxApp(Adw.Application):
 
         dialog = PreferencesDialog()
         dialog.present(self._window)
+
+    def _on_export_profiles(self, action, param):
+        from pathlib import Path
+        from .profile import ProfileManager
+
+        mgr = ProfileManager()
+        profiles = mgr.load_all()
+        if not profiles:
+            dialog = Adw.AlertDialog(heading="Nessun profilo", body="Non ci sono profili da esportare.")
+            dialog.add_response("ok", "OK")
+            dialog.present(self._window)
+            return
+
+        file_dialog = Gtk.FileDialog(
+            title="Esporta profili",
+            initial_name="fortyfax-profiles.json",
+        )
+        json_filter = Gtk.FileFilter()
+        json_filter.set_name("File JSON")
+        json_filter.add_pattern("*.json")
+        filters = Gio.ListStore.new(Gtk.FileFilter)
+        filters.append(json_filter)
+        file_dialog.set_filters(filters)
+
+        file_dialog.save(self._window, None, self._on_export_save_response)
+
+    def _on_export_save_response(self, dialog, result):
+        from pathlib import Path
+        from .profile import ProfileManager
+
+        try:
+            gfile = dialog.save_finish(result)
+        except GLib.Error:
+            return  # user cancelled
+
+        path = Path(gfile.get_path())
+        mgr = ProfileManager()
+        count = mgr.export_profiles(path)
+
+        msg = Adw.AlertDialog(heading="Esportazione completata", body=f"{count} profili esportati in:\n{path}")
+        msg.add_response("ok", "OK")
+        msg.present(self._window)
+
+    def _on_import_profiles(self, action, param):
+        file_dialog = Gtk.FileDialog(title="Importa profili")
+        json_filter = Gtk.FileFilter()
+        json_filter.set_name("File JSON")
+        json_filter.add_pattern("*.json")
+        filters = Gio.ListStore.new(Gtk.FileFilter)
+        filters.append(json_filter)
+        file_dialog.set_filters(filters)
+
+        file_dialog.open(self._window, None, self._on_import_open_response)
+
+    def _on_import_open_response(self, dialog, result):
+        from pathlib import Path
+        from .profile import ProfileManager
+
+        try:
+            gfile = dialog.open_finish(result)
+        except GLib.Error:
+            return  # user cancelled
+
+        path = Path(gfile.get_path())
+        mgr = ProfileManager()
+        count, errors = mgr.import_profiles(path)
+
+        lines = [f"{count} profili importati."]
+        if errors:
+            lines.append("")
+            lines.append("Errori:")
+            lines.extend(f"  - {e}" for e in errors)
+
+        msg = Adw.AlertDialog(
+            heading="Importazione completata" if count > 0 else "Importazione fallita",
+            body="\n".join(lines),
+        )
+        msg.add_response("ok", "OK")
+        msg.present(self._window)
+
+        # Refresh profile list in window
+        if count > 0 and self._window and hasattr(self._window, "_refresh_profile_list"):
+            if hasattr(self._window, "_first_check"):
+                del self._window._first_check
+            self._window._refresh_profile_list()
 
     def _on_about(self, action, param):
         about = Adw.AboutDialog(
