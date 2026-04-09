@@ -373,10 +373,11 @@ class MainWindow(Adw.ApplicationWindow):
         try:
             from .auth import authenticate_saml
         except Exception as e:
+            from . import distro
             self._show_error(
                 "WebKitGTK non disponibile",
                 f"Per l'autenticazione SSO/SAML è necessario WebKitGTK 6.0.\n\n"
-                f"Installalo con:\n  sudo dnf install webkitgtk6.0\n\nErrore: {e}",
+                f"Installalo con:\n  {distro.fix_for('webkitgtk6.0')}\n\nErrore: {e}",
             )
             return
 

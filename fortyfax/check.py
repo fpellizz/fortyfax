@@ -1,9 +1,10 @@
 """System prerequisite checker for Fortyfax."""
 
 import shutil
-import subprocess
 import sys
 from dataclasses import dataclass
+
+from . import distro
 
 
 @dataclass
@@ -21,7 +22,7 @@ def check_python_version() -> CheckResult:
         name="Python >= 3.10",
         ok=ok,
         message=f"Python {v.major}.{v.minor}.{v.micro}" if ok else f"Python {v.major}.{v.minor} è troppo vecchio",
-        fix="sudo dnf install python3",
+        fix=distro.fix_for("python3"),
     )
 
 
@@ -31,7 +32,7 @@ def check_openfortivpn() -> CheckResult:
         name="openfortivpn",
         ok=path is not None,
         message=f"Trovato: {path}" if path else "Non trovato",
-        fix="sudo dnf install openfortivpn",
+        fix=distro.fix_for("openfortivpn"),
     )
 
 
@@ -46,7 +47,7 @@ def check_gtk4() -> CheckResult:
             name="GTK 4",
             ok=False,
             message=str(e),
-            fix="sudo dnf install gtk4 python3-gobject",
+            fix=distro.install_cmd(["gtk4", "python3-gobject"]),
         )
 
 
@@ -61,7 +62,7 @@ def check_adwaita() -> CheckResult:
             name="libadwaita",
             ok=False,
             message=str(e),
-            fix="sudo dnf install libadwaita python3-gobject",
+            fix=distro.install_cmd(["libadwaita", "python3-gobject"]),
         )
 
 
@@ -76,7 +77,7 @@ def check_webkitgtk() -> CheckResult:
             name="WebKitGTK 6.0",
             ok=False,
             message=str(e),
-            fix="sudo dnf install webkitgtk6.0",
+            fix=distro.fix_for("webkitgtk6.0"),
         )
 
 
@@ -91,7 +92,7 @@ def check_libsecret() -> CheckResult:
             name="libsecret",
             ok=False,
             message=str(e),
-            fix="sudo dnf install libsecret python3-gobject",
+            fix=distro.install_cmd(["libsecret", "python3-gobject"]),
         )
 
 
@@ -101,7 +102,7 @@ def check_pkexec() -> CheckResult:
         name="pkexec (PolicyKit)",
         ok=path is not None,
         message=f"Trovato: {path}" if path else "Non trovato",
-        fix="sudo dnf install polkit",
+        fix=distro.fix_for("polkit"),
     )
 
 
@@ -116,25 +117,24 @@ def check_appindicator() -> CheckResult:
             name="AppIndicator3",
             ok=False,
             message=str(e),
-            fix="sudo dnf install libappindicator-gtk3",
+            fix=distro.fix_for("libappindicator-gtk3"),
         )
 
 
 def check_pppd() -> CheckResult:
-    # openfortivpn needs pppd
+    import os
     for p in ["/usr/sbin/pppd", "/sbin/pppd"]:
-        if shutil.which("pppd") or __import__("os").path.exists(p):
+        if shutil.which("pppd") or os.path.exists(p):
             return CheckResult(name="pppd", ok=True, message="Trovato")
     return CheckResult(
         name="pppd",
         ok=False,
         message="Non trovato (necessario per openfortivpn)",
-        fix="sudo dnf install ppp",
+        fix=distro.fix_for("ppp"),
     )
 
 
 def check_gpclient() -> CheckResult:
-    """Check for GlobalProtect-openconnect (gpclient)."""
     path = shutil.which("gpclient")
     if path:
         return CheckResult(
@@ -146,12 +146,11 @@ def check_gpclient() -> CheckResult:
         name="gpclient (GlobalProtect)",
         ok=False,
         message="Non trovato (necessario per VPN Palo Alto)",
-        fix="sudo dnf copr enable yuezk/globalprotect-openconnect && sudo dnf install globalprotect-openconnect",
+        fix=distro.gpclient_install_instructions(),
     )
 
 
 def check_openconnect() -> CheckResult:
-    """Check for openconnect (used by gpclient)."""
     path = shutil.which("openconnect")
     if path:
         return CheckResult(
@@ -163,18 +162,18 @@ def check_openconnect() -> CheckResult:
         name="openconnect",
         ok=False,
         message="Non trovato (necessario per GlobalProtect)",
-        fix="sudo dnf install openconnect",
+        fix=distro.fix_for("openconnect"),
     )
 
 
 def check_vpnc_script() -> CheckResult:
-    """Check for vpnc-script (used by gpclient for network setup)."""
+    import os
     for path in [
         "/usr/share/vpnc-scripts/vpnc-script",
         "/etc/vpnc/vpnc-script",
         "/usr/sbin/vpnc-script",
     ]:
-        if __import__("os").path.isfile(path):
+        if os.path.isfile(path):
             return CheckResult(
                 name="vpnc-script",
                 ok=True,
@@ -184,7 +183,7 @@ def check_vpnc_script() -> CheckResult:
         name="vpnc-script",
         ok=False,
         message="Non trovato (necessario per GlobalProtect)",
-        fix="sudo dnf install vpnc-script",
+        fix=distro.fix_for("vpnc-script"),
     )
 
 
@@ -220,26 +219,32 @@ def run_all_checks() -> list[CheckResult]:
 
 
 def get_missing_deps_install_command(results: list[CheckResult]) -> str | None:
-    """Return a single dnf command to fix all missing deps, or None if all ok."""
-    fixes = []
+    """Return a single install command to fix all missing simple deps."""
+    packages = []
     for r in results:
         if not r.ok and r.fix:
-            # Extract packages from 'sudo dnf install ...'
+            # Only aggregate simple "sudo <pm> install" commands, not multi-step ones
             parts = r.fix.split("install ")
-            if len(parts) == 2:
-                fixes.extend(parts[1].split())
-    if not fixes:
+            if len(parts) == 2 and "&&" not in r.fix:
+                # Strip -y flag since we add our own
+                pkgs = [p for p in parts[1].strip().split() if p != "-y"]
+                packages.extend(pkgs)
+    if not packages:
         return None
-    unique = list(dict.fromkeys(fixes))  # deduplicate preserving order
-    return f"sudo dnf install -y {' '.join(unique)}"
+    unique = list(dict.fromkeys(packages))  # deduplicate preserving order
+    pm = distro.pkg_manager()
+    return f"sudo {pm} install -y {' '.join(unique)}"
 
 
 def print_check_report(results: list[CheckResult]) -> bool:
     """Print a human-readable report. Returns True if all checks pass."""
     all_ok = True
-    print("\n╔══════════════════════════════════════════════════════════════╗")
-    print("║            Fortyfax - Verifica Prerequisiti                 ║")
-    print("╠══════════════════════════════════════════════════════════════╣")
+    family = distro.detect()
+    label = {"redhat": "Fedora/RHEL", "debian": "Debian/Ubuntu"}.get(family, "Linux")
+
+    print(f"\n╔══════════════════════════════════════════════════════════════╗")
+    print(f"║       Fortyfax - Verifica Prerequisiti ({label:<14})    ║")
+    print(f"╠══════════════════════════════════════════════════════════════╣")
     for r in results:
         icon = "  ✓" if r.ok else "  ✗"
         print(f"║ {icon}  {r.name:<24} {r.message:<30}║")

@@ -19,40 +19,87 @@ if [[ $EUID -ne 0 ]]; then
     exit 1
 fi
 
+# Detect distro family
+detect_distro() {
+    if [ -f /etc/os-release ]; then
+        . /etc/os-release
+        if [[ "$ID" == "fedora" || "${ID_LIKE:-}" =~ "fedora" || "${ID_LIKE:-}" =~ "rhel" ]]; then
+            echo "redhat"
+        elif [[ "$ID" == "debian" || "$ID" == "ubuntu" || "${ID_LIKE:-}" =~ "debian" || "${ID_LIKE:-}" =~ "ubuntu" ]]; then
+            echo "debian"
+        else
+            echo "unknown"
+        fi
+    else
+        echo "unknown"
+    fi
+}
+
+DISTRO=$(detect_distro)
+echo "Distribuzione rilevata: ${DISTRO}"
+
+if [[ "$DISTRO" == "unknown" ]]; then
+    echo "⚠  Distribuzione non riconosciuta. L'installazione continua ma"
+    echo "   potresti dover installare le dipendenze manualmente."
+fi
+
 # Check prerequisites
 echo "Verifica prerequisiti..."
 MISSING=()
-
-if ! command -v openfortivpn &>/dev/null; then
-    MISSING+=("openfortivpn")
-fi
 
 if ! command -v pkexec &>/dev/null; then
     MISSING+=("polkit")
 fi
 
 if ! python3 -c "import gi; gi.require_version('Gtk', '4.0'); from gi.repository import Gtk" 2>/dev/null; then
-    MISSING+=("gtk4 python3-gobject")
+    if [[ "$DISTRO" == "debian" ]]; then
+        MISSING+=("python3-gi" "gir1.2-gtk-4.0")
+    else
+        MISSING+=("gtk4" "python3-gobject")
+    fi
 fi
 
 if ! python3 -c "import gi; gi.require_version('Adw', '1'); from gi.repository import Adw" 2>/dev/null; then
-    MISSING+=("libadwaita")
+    if [[ "$DISTRO" == "debian" ]]; then
+        MISSING+=("gir1.2-adw-1")
+    else
+        MISSING+=("libadwaita")
+    fi
 fi
 
 if ! python3 -c "import gi; gi.require_version('WebKit', '6.0'); from gi.repository import WebKit" 2>/dev/null; then
-    MISSING+=("webkitgtk6.0")
+    if [[ "$DISTRO" == "debian" ]]; then
+        MISSING+=("gir1.2-webkit-6.0")
+    else
+        MISSING+=("webkitgtk6.0")
+    fi
+fi
+
+if ! command -v openfortivpn &>/dev/null; then
+    MISSING+=("openfortivpn")
 fi
 
 if [[ ${#MISSING[@]} -gt 0 ]]; then
     echo
     echo "⚠  Dipendenze mancanti rilevate!"
+
+    if [[ "$DISTRO" == "debian" ]]; then
+        PKG_CMD="apt install -y ${MISSING[*]}"
+    else
+        PKG_CMD="dnf install -y ${MISSING[*]}"
+    fi
+
     echo "   Installa con:"
     echo
-    echo "   sudo dnf install -y ${MISSING[*]}"
+    echo "   sudo $PKG_CMD"
     echo
     read -rp "Vuoi installarle ora? [S/n] " answer
     if [[ "${answer,,}" != "n" ]]; then
-        dnf install -y "${MISSING[@]}"
+        if [[ "$DISTRO" == "debian" ]]; then
+            apt update && apt install -y "${MISSING[@]}"
+        else
+            dnf install -y "${MISSING[@]}"
+        fi
     else
         echo "Installazione annullata. Installa le dipendenze e riprova."
         exit 1
@@ -101,9 +148,11 @@ StartupNotify=true
 StartupWMClass=com.github.fortyfax
 DESKTOP
 
-# Create polkit policy for openfortivpn (allows running without password prompt each time)
+# Create polkit policy
 echo "Configurazione PolicyKit..."
-cat > /usr/share/polkit-1/actions/com.github.fortyfax.policy <<POLKIT
+POLKIT_DIR="/usr/share/polkit-1/actions"
+mkdir -p "$POLKIT_DIR"
+cat > "${POLKIT_DIR}/com.github.fortyfax.policy" <<POLKIT
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE policyconfig PUBLIC
  "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
@@ -113,8 +162,8 @@ cat > /usr/share/polkit-1/actions/com.github.fortyfax.policy <<POLKIT
   <vendor_url>https://stazzo@bitbucket.org/decisyon/fortyfax</vendor_url>
 
   <action id="com.github.fortyfax.run-vpn">
-    <description>Manage openfortivpn VPN connection (start/stop)</description>
-    <description xml:lang="it">Gestisci connessione VPN openfortivpn (avvio/arresto)</description>
+    <description>Manage VPN connection (start/stop)</description>
+    <description xml:lang="it">Gestisci connessione VPN (avvio/arresto)</description>
     <message>Authentication required to manage VPN connection</message>
     <message xml:lang="it">Autenticazione richiesta per gestire la connessione VPN</message>
     <defaults>
