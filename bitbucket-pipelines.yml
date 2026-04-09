@@ -1,0 +1,59 @@
+image: fedora:latest
+
+definitions:
+  steps:
+    - step: &build-packages
+        name: Build RPM & DEB
+        script:
+          # Install build dependencies
+          - dnf install -y python3 ruby ruby-devel rpm-build gcc make rsync
+          - gem install --no-document fpm
+
+          # Extract version from source
+          - export VERSION=$(python3 -c "import sys; sys.path.insert(0,'.'); from fortyfax import __version__; print(__version__)")
+          - echo "Building Fortyfax v${VERSION}"
+
+          # Build packages
+          - chmod +x build-pkg.sh
+          - ./build-pkg.sh
+
+          # List generated packages
+          - ls -lh dist/
+        artifacts:
+          - dist/*.rpm
+          - dist/*.deb
+
+    - step: &upload-downloads
+        name: Upload to Bitbucket Downloads
+        script:
+          - ls -lh dist/
+          # Upload RPM
+          - >
+            curl -X POST
+            "https://api.bitbucket.org/2.0/repositories/${BITBUCKET_WORKSPACE}/${BITBUCKET_REPO_SLUG}/downloads"
+            -F files=@"$(ls dist/*.rpm)"
+            -u "${BB_AUTH_USER}:${BB_AUTH_TOKEN}"
+          # Upload DEB
+          - >
+            curl -X POST
+            "https://api.bitbucket.org/2.0/repositories/${BITBUCKET_WORKSPACE}/${BITBUCKET_REPO_SLUG}/downloads"
+            -F files=@"$(ls dist/*.deb)"
+            -u "${BB_AUTH_USER}:${BB_AUTH_TOKEN}"
+          - echo "Packages uploaded to https://bitbucket.org/${BITBUCKET_WORKSPACE}/${BITBUCKET_REPO_SLUG}/downloads/"
+
+pipelines:
+  # Build on every push (artifacts available for 14 days)
+  default:
+    - step: *build-packages
+
+  # On tag push: build + upload to Downloads
+  tags:
+    'v*':
+      - step: *build-packages
+      - step: *upload-downloads
+
+  # Manual trigger from any branch
+  custom:
+    release:
+      - step: *build-packages
+      - step: *upload-downloads

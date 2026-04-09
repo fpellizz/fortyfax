@@ -189,7 +189,7 @@ python3 ./fortyfax-bin
 
 ### Installazione da pacchetto (RPM / DEB)
 
-I pacchetti pre-compilati sono disponibili nella pagina [Releases](https://bitbucket.org/decisyon/fortyfax/downloads/).
+I pacchetti pre-compilati sono disponibili nella sezione [Downloads](https://bitbucket.org/decisyon/fortyfax/downloads/) del repository. Vengono generati automaticamente dalla pipeline CI/CD ad ogni tag `v*`.
 
 **Fedora / RHEL:**
 
