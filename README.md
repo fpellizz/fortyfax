@@ -23,9 +23,9 @@ Funzionalità principali:
 
 - **Login SAML/SSO**: webview integrata per Fortinet (cattura SVPNCOOKIE), browser di sistema per GlobalProtect
 - **Auto-compilazione credenziali** (email/password) sul form dell'Identity Provider (Fortinet)
-- **Login con username/password** classico
+- **Login con username/password** classico con salvataggio password cifrata nel profilo
 - **Gestione profili** multipli con editor grafico completo
-- **Interfaccia nativa GNOME** che si integra con il desktop (GTK4 + libadwaita)
+- **Interfaccia nativa** che si integra con il desktop (GTK4 + libadwaita, compatibile GNOME e KDE Plasma)
 - **Icona nel system tray** con stato connessione, menu contestuale e hide-on-close
 - **Notifiche desktop** per connessione, disconnessione ed errori (GNOME e KDE)
 - **DNS watchdog** per GlobalProtect: mantiene la configurazione DNS corretta sull'interfaccia VPN
@@ -34,7 +34,22 @@ Funzionalità principali:
 
 ## Screenshot
 
-*TODO: aggiungere screenshot dell'interfaccia*
+> Per catturare gli screenshot: avvia Fortyfax, usa `Spectacle` (KDE) o `gnome-screenshot` (GNOME) e salva le immagini nella cartella `screenshots/`.
+
+| Schermata | Descrizione |
+| --------- | ----------- |
+| ![Finestra principale](screenshots/main_window.png) | Lista profili VPN con stato connessione |
+| ![Editor profilo GP](screenshots/profile_editor_gp.png) | Editor profilo con tipo VPN GlobalProtect |
+| ![Editor profilo Fortinet](screenshots/profile_editor_fortinet.png) | Editor profilo con tipo VPN Fortinet |
+| ![Preferenze](screenshots/preferences.png) | Preferenze: tema e notifiche |
+
+### Icone tray
+
+| Stato | Icona |
+| ----- | ----- |
+| Connesso | ![Connesso](icons/tray_connected_48.png) |
+| Disconnesso | ![Disconnesso](icons/tray_disconnected_48.png) |
+| Errore | ![Errore](icons/tray_error_48.png) |
 
 ## Funzionalita
 
@@ -250,7 +265,7 @@ La password è salvata nel **portachiavi di sistema** (GNOME Keyring / KDE Walle
 3. Se la password è salvata nel profilo, la connessione parte automaticamente
 4. Altrimenti, inserisci la password nel dialog
 
-Per salvare la password: apri l'editor del profilo (icona matita), compila il campo **"Password VPN"** nel gruppo Autenticazione, e salva. La password viene memorizzata nel **portachiavi di sistema** (GNOME Keyring / KDE Wallet), mai in chiaro su disco.
+Per salvare la password: apri l'editor del profilo (icona matita), compila il campo **"Password VPN"** nel gruppo Autenticazione, e salva. La password viene **cifrata** (PBKDF2 + salt random) e salvata nel file JSON del profilo. La chiave di cifratura e in `~/.config/fortyfax/.secret` (permessi `0600`), generata automaticamente al primo utilizzo.
 
 ### Certificato trusted
 
@@ -264,7 +279,7 @@ Puoi visualizzare il log cliccando l'icona terminale nella barra superiore.
 
 **Esportazione tutti i profili**: Menu hamburger > **Esporta tutti i profili...** salva tutti i profili in un unico file JSON.
 
-Le password SSO **non** vengono incluse nei file esportati (rimangono nel portachiavi di sistema).
+Le **password** (VPN e SSO) **non** vengono incluse nei file esportati per sicurezza.
 
 **Importazione**: Menu hamburger > **Importa profili...** carica profili da un file JSON (sia singolo che multiplo). Ogni profilo importato riceve un nuovo identificativo, quindi non sovrascrive quelli esistenti.
 
@@ -315,7 +330,8 @@ fortyfax/
     ├── auth.py                # Autenticazione SAML/SSO via WebKitGTK (Fortinet)
     ├── check.py               # Verifica prerequisiti di sistema (Fortinet + GlobalProtect)
     ├── connection.py          # Gestione connessione VPN (Fortinet + GlobalProtect + DNS watchdog)
-    ├── credential_store.py    # Storage credenziali SSO via libsecret (GNOME Keyring)
+    ├── credential_store.py    # Storage credenziali SSO via libsecret (GNOME Keyring / KDE Wallet)
+    ├── crypto.py              # Cifratura locale password VPN (PBKDF2 + salt)
     ├── dialogs.py             # Dialog: editor profili, password, log viewer, preferenze
     ├── profile.py             # Modello dati profili + persistenza JSON
     ├── settings.py            # Impostazioni applicazione (tema, persistenza JSON)
@@ -387,11 +403,12 @@ I profili sono salvati in `~/.config/fortyfax/profiles/<uuid>.json`:
   "name": "VPN Ufficio",
   "host": "vpn.azienda.com",
   "port": 443,
-  "username": "",
-  "auth_method": "saml",
+  "username": "utente",
+  "auth_method": "password",
+  "encrypted_password": "base64...",
   "trusted_cert": "a1b2c3d4e5f6...",
   "realm": "",
-  "use_resolvconf": true,
+  "vpn_type": "fortinet",
   "set_dns": true,
   "set_routes": true,
   "pppd_use_peerdns": true,
@@ -400,6 +417,19 @@ I profili sono salvati in `~/.config/fortyfax/profiles/<uuid>.json`:
   "uid": "550e8400-e29b-41d4-a716-446655440000"
 }
 ```
+
+Per i profili GlobalProtect si aggiungono i campi `gp_gateway`, `gp_extra_dns`, `gp_vpn_dns`, `gp_hip`, `gp_mtu`, `gp_no_dtls`, `gp_fix_openssl`.
+
+### Cifratura password
+
+Le password VPN sono cifrate con:
+
+- **Chiave**: 32 byte random in `~/.config/fortyfax/.secret` (permessi `0600`)
+- **Algoritmo**: PBKDF2-SHA256 (100.000 iterazioni) + XOR
+- **Salt**: 16 byte random per ogni cifratura (lo stesso testo produce token diversi)
+- **Formato**: base64(salt + dati_cifrati) nel campo `encrypted_password` del JSON
+
+La chiave non lascia mai la macchina. Se il file `.secret` viene perso, le password devono essere reinserite. Le password **non** vengono incluse nell'export dei profili.
 
 ### Impostazioni applicazione
 
