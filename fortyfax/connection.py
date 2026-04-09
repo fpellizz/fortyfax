@@ -165,10 +165,27 @@ class VPNConnection:
 
     @staticmethod
     def _kill_stale_gpclient():
-        """Kill any leftover gpclient/openconnect processes from previous runs."""
+        """Kill any leftover gpclient/openconnect processes from previous runs.
+
+        These processes run as root (via pkexec), so we need elevated
+        privileges to kill them. First try 'gpclient disconnect', then
+        pkill via pkexec as fallback.
+        """
+        # Try graceful disconnect first
+        try:
+            subprocess.run(
+                ["pkexec", _HELPER, "start", "gpclient", "disconnect"],
+                capture_output=True, timeout=5,
+            )
+        except Exception:
+            pass
+        # Force kill any remaining processes (they run as root)
         for proc_name in ["gpclient", "openconnect"]:
             try:
-                subprocess.run(["pkill", "-f", proc_name], capture_output=True, timeout=5)
+                subprocess.run(
+                    ["pkexec", "pkill", "-f", proc_name],
+                    capture_output=True, timeout=5,
+                )
             except Exception:
                 pass
 
