@@ -109,10 +109,13 @@ class ProfileEditorDialog(Adw.Dialog):
         self._vpn_password_row = Adw.PasswordEntryRow(title="Password VPN (salvata nel portachiavi)")
         auth_group.add(self._vpn_password_row)
 
-        vpn_pwd_info = Adw.ActionRow(
-            subtitle="Se compilata, la password viene usata automaticamente "
-                     "alla connessione. Salvata nel portachiavi di sistema, non su disco."
-        )
+        if credential_store.is_keyring_available():
+            pwd_subtitle = ("Se compilata, la password viene usata automaticamente "
+                            "alla connessione. Salvata nel portachiavi di sistema, non su disco.")
+        else:
+            pwd_subtitle = ("Portachiavi non disponibile (GNOME Keyring / KDE Wallet). "
+                            "La password non verrà salvata.")
+        vpn_pwd_info = Adw.ActionRow(subtitle=pwd_subtitle)
         vpn_pwd_info.add_css_class("property")
         auth_group.add(vpn_pwd_info)
         self._vpn_pwd_info = vpn_pwd_info

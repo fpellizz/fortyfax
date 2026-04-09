@@ -99,7 +99,7 @@ Funzionalità principali:
 | libadwaita | 1.0+ | `libadwaita` | |
 | PyGObject | 3.42+ | `python3-gobject` | Binding Python per GTK |
 | WebKitGTK | 6.0+ | `webkitgtk6.0` | Per autenticazione SAML/SSO (Fortinet) |
-| libsecret | 1.0+ | `libsecret` | Storage sicuro credenziali |
+| libsecret | 1.0+ | `libsecret` | Storage credenziali (GNOME Keyring / KDE Wallet) |
 | PolicyKit | — | `polkit` | Elevazione privilegi per la connessione |
 | AppIndicator3 | — | `libappindicator-gtk3` | Icona nel system tray |
 
@@ -247,8 +247,10 @@ La password è salvata nel **portachiavi di sistema** (GNOME Keyring / KDE Walle
 
 1. Seleziona il profilo con autenticazione password
 2. Clicca **"Connetti"**
-3. Inserisci la password nel dialog
-4. La connessione VPN parte
+3. Se la password è salvata nel profilo, la connessione parte automaticamente
+4. Altrimenti, inserisci la password nel dialog
+
+Per salvare la password: apri l'editor del profilo (icona matita), compila il campo **"Password VPN"** nel gruppo Autenticazione, e salva. La password viene memorizzata nel **portachiavi di sistema** (GNOME Keyring / KDE Wallet), mai in chiaro su disco.
 
 ### Certificato trusted
 

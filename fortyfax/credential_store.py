@@ -1,4 +1,9 @@
-"""Secure credential storage using libsecret (GNOME Keyring)."""
+"""Secure credential storage using libsecret (GNOME Keyring / KDE Wallet).
+
+Uses the freedesktop.org Secret Service D-Bus API, which is implemented by:
+- GNOME Keyring (gnome-keyring-daemon)
+- KDE Wallet (kwalletd5/kwalletd6 via ksecretservice)
+"""
 
 import logging
 
@@ -98,4 +103,13 @@ def clear_vpn_password(profile_uid: str) -> bool:
         return True
     except Exception as e:
         log.warning("Failed to clear VPN password: %s", e)
+        return False
+
+
+def is_keyring_available() -> bool:
+    """Check if a Secret Service provider (GNOME Keyring or KDE Wallet) is available."""
+    try:
+        service = Secret.Service.get_sync(Secret.ServiceFlags.NONE, None)
+        return service is not None
+    except Exception:
         return False
