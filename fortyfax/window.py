@@ -380,12 +380,12 @@ class MainWindow(Adw.ApplicationWindow):
             )
             return
 
-        # Load SSO credentials for auto-fill
+        # Load SSO credentials for auto-fill (from encrypted profile)
         sso_username = profile.sso_username
         sso_password = ""
-        if sso_username:
-            from .credential_store import lookup_sso_password
-            sso_password = lookup_sso_password(profile.uid) or ""
+        if sso_username and profile.encrypted_sso_password:
+            from . import crypto
+            sso_password = crypto.decrypt(profile.encrypted_sso_password)
 
         authenticate_saml(
             parent=self,

@@ -282,9 +282,9 @@ class ProfileEditorDialog(Adw.Dialog):
         if vpn_pwd:
             self._vpn_password_row.set_text(vpn_pwd)
 
-        # SSO credentials
+        # SSO credentials (encrypted in profile)
         self._sso_username_row.set_text(p.sso_username)
-        sso_pwd = credential_store.lookup_sso_password(p.uid)
+        sso_pwd = crypto.decrypt(p.encrypted_sso_password)
         if sso_pwd:
             self._sso_password_row.set_text(sso_pwd)
 
@@ -358,12 +358,9 @@ class ProfileEditorDialog(Adw.Dialog):
         vpn_pwd = self._vpn_password_row.get_text()
         p.encrypted_password = crypto.encrypt(vpn_pwd) if vpn_pwd else ""
 
-        # Save SSO password in keyring (only for Fortinet SAML)
+        # Save SSO password encrypted in profile
         sso_pwd = self._sso_password_row.get_text()
-        if sso_pwd:
-            credential_store.store_sso_password(p.uid, p.name, sso_pwd)
-        else:
-            credential_store.clear_sso_password(p.uid)
+        p.encrypted_sso_password = crypto.encrypt(sso_pwd) if sso_pwd else ""
 
         errors = p.validate()
         if errors:
