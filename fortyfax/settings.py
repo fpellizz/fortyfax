@@ -23,6 +23,7 @@ THEME_CHOICES = {
 _DEFAULTS = {
     "theme": "system",
     "notifications": True,
+    "sso_browser": "auto",  # "auto", "chrome", "edge", "xdg-open"
 }
 
 

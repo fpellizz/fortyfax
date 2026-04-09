@@ -457,6 +457,33 @@ class PreferencesDialog(Adw.PreferencesDialog):
         notif_group.add(self._notif_switch)
 
         page.add(notif_group)
+
+        # --- SSO Browser group ---
+        browser_group = Adw.PreferencesGroup(
+            title="Browser SSO",
+            description="Browser per il login SSO di GlobalProtect. "
+                        "Chrome e Edge ricordano le password dell'Identity Provider.",
+        )
+
+        self._browser_row = Adw.ComboRow(
+            title="Browser",
+            subtitle="Browser da usare per l'autenticazione SSO",
+        )
+        browser_list = Gtk.StringList.new([
+            "Automatico (Chrome > Edge > default)",
+            "Google Chrome / Chromium",
+            "Microsoft Edge",
+            "Browser predefinito (xdg-open)",
+        ])
+        self._browser_row.set_model(browser_list)
+
+        current_browser = settings.get("sso_browser")
+        browser_idx = {"auto": 0, "chrome": 1, "edge": 2, "xdg-open": 3}.get(current_browser, 0)
+        self._browser_row.set_selected(browser_idx)
+        self._browser_row.connect("notify::selected", self._on_browser_changed)
+        browser_group.add(self._browser_row)
+
+        page.add(browser_group)
         self.add(page)
 
     def _on_theme_changed(self, row, pspec):
@@ -467,6 +494,11 @@ class PreferencesDialog(Adw.PreferencesDialog):
 
     def _on_notif_changed(self, row, pspec):
         settings.set("notifications", row.get_active())
+
+    def _on_browser_changed(self, row, pspec):
+        idx = row.get_selected()
+        key = {0: "auto", 1: "chrome", 2: "edge", 3: "xdg-open"}.get(idx, "auto")
+        settings.set("sso_browser", key)
 
 
 class LogDialog(Adw.Dialog):

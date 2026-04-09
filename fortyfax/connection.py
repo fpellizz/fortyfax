@@ -320,17 +320,54 @@ class VPNConnection:
         return None
 
     @staticmethod
-    def _create_browser_wrapper() -> str:
-        """Create a wrapper script that opens the browser as the real user.
+    def _find_sso_browser() -> str:
+        """Find the best browser for SSO login.
 
-        This is called BEFORE pkexec elevation, so os.getuid() is the real user.
-        The wrapper must use sudo -u because gpclient runs as root via pkexec.
+        Priority: user preference > Chrome/Chromium > Edge > xdg-open fallback.
+        Chrome and Edge have built-in password managers that remember SSO
+        credentials, making repeated logins much smoother.
+        """
+        from . import settings
+
+        pref = settings.get("sso_browser")
+
+        # Explicit user preference
+        browser_map = {
+            "chrome": ["google-chrome-stable", "google-chrome", "chromium", "chromium-browser"],
+            "edge": ["microsoft-edge-stable", "microsoft-edge"],
+        }
+
+        if pref in browser_map:
+            for cmd in browser_map[pref]:
+                found = shutil.which(cmd)
+                if found:
+                    return found
+
+        # Auto-detect: try Chrome/Chromium first, then Edge
+        if pref == "auto":
+            for cmd in ["google-chrome-stable", "google-chrome", "chromium", "chromium-browser",
+                        "microsoft-edge-stable", "microsoft-edge"]:
+                found = shutil.which(cmd)
+                if found:
+                    log.info("SSO browser auto-detected: %s", found)
+                    return found
+
+        # Fallback
+        return shutil.which("xdg-open") or "/usr/bin/xdg-open"
+
+    def _create_browser_wrapper(self) -> str:
+        """Create a wrapper script that opens the SSO browser as the real user.
+
+        gpclient runs as root via pkexec, so the wrapper uses sudo -u to launch
+        the browser as the original user (for access to the user's profile/cookies).
         """
         import pwd
         real_user = pwd.getpwuid(os.getuid()).pw_name
+        browser = self._find_sso_browser()
+        self._append_log(f"[SSO] Browser: {browser}")
         path = "/tmp/fortyfax_browser_wrapper.sh"
         with open(path, "w") as f:
-            f.write(f'#!/bin/bash\nsudo -u {real_user} /usr/bin/xdg-open "$@"\n')
+            f.write(f'#!/bin/bash\nsudo -u {real_user} {browser} "$@"\n')
         os.chmod(path, 0o755)
         return path
 

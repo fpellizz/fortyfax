@@ -228,9 +228,11 @@ I profili in `~/.config/fortyfax/` **non** vengono rimossi.
 
 1. Seleziona il profilo GlobalProtect
 2. Clicca **"Connetti"**
-3. Per SSO: si apre il **browser di sistema** con la pagina di login (gestito da gpclient)
-4. Per Password: inserisci la password nel dialog
+3. Per SSO: si apre **Chrome/Edge** (o il browser predefinito) con la pagina di login dell'IdP. Il password manager del browser ricorda le credenziali SSO.
+4. Per Password: se la password è salvata nel profilo, la connessione parte automaticamente. Altrimenti viene chiesta.
 5. La connessione VPN parte. Se configurati, i domini DNS extra vengono applicati automaticamente
+
+**Scelta del browser SSO**: da **Preferenze > Browser SSO** puoi scegliere quale browser usare per il login GlobalProtect. In modalità "Automatico", Fortyfax cerca nell'ordine: Google Chrome/Chromium, Microsoft Edge, browser predefinito di sistema. Chrome e Edge hanno password manager integrati che ricordano le credenziali dell'Identity Provider.
 
 **Campi specifici GlobalProtect:**
 
@@ -433,11 +435,19 @@ Le impostazioni globali sono salvate in `~/.config/fortyfax/settings.json`:
 ```json
 {
   "theme": "system",
-  "notifications": true
+  "notifications": true,
+  "sso_browser": "auto"
 }
 ```
 
 Valori disponibili per `notifications`: `true` (default) o `false`.
+
+Valori disponibili per `sso_browser`:
+
+- `"auto"` — cerca Chrome/Chromium, poi Edge, poi browser predefinito (default)
+- `"chrome"` — forza Google Chrome o Chromium
+- `"edge"` — forza Microsoft Edge
+- `"xdg-open"` — usa il browser predefinito di sistema
 
 Valori disponibili per `theme`:
 
