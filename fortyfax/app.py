@@ -31,6 +31,7 @@ class FortyfaxApp(Adw.Application):
     def do_startup(self):
         Adw.Application.do_startup(self)
         settings.apply_theme()
+        self._register_app_icon()
         self._setup_actions()
         try:
             self._tray = TrayIcon(self)
@@ -48,6 +49,15 @@ class FortyfaxApp(Adw.Application):
     def _on_window_close_request(self, window):
         window.set_visible(False)
         return True  # prevent default close/destroy
+
+    @staticmethod
+    def _register_app_icon():
+        """Add our icons dir to the theme search path so the app icon is found."""
+        import os
+        from gi.repository import Gdk
+        icons_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "icons")
+        icon_theme = Gtk.IconTheme.get_for_display(Gdk.Display.get_default())
+        icon_theme.add_search_path(os.path.realpath(icons_dir))
 
     @property
     def tray(self):
@@ -174,7 +184,7 @@ class FortyfaxApp(Adw.Application):
     def _on_about(self, action, param):
         about = Adw.AboutDialog(
             application_name=__app_name__,
-            application_icon="network-vpn-symbolic",
+            application_icon=__app_id__,
             version=__version__,
             developer_name="Fortyfax",
             comments="GUI per openfortivpn e GlobalProtect con supporto SAML/SSO",
