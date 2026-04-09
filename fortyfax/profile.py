@@ -36,6 +36,7 @@ class VPNProfile:
     gp_no_dtls: bool = False
     gp_fix_openssl: bool = False
     encrypted_password: str = ""  # encrypted VPN password (base64, local key)
+    encrypted_sso_password: str = ""  # encrypted SSO password for webview auto-fill
     uid: str = field(default_factory=lambda: str(uuid.uuid4()))
 
     @property
@@ -161,6 +162,7 @@ class ProfileManager:
             d = asdict(p)
             del d["uid"]  # don't export UIDs — new ones on import
             d.pop("encrypted_password", None)  # don't export passwords
+            d.pop("encrypted_sso_password", None)
             data["profiles"].append(d)
         path.write_text(json.dumps(data, indent=2, ensure_ascii=False))
         return len(profiles)

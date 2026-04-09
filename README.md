@@ -112,7 +112,7 @@ L'icona nella system tray cambia colore in base allo stato della VPN:
 | libadwaita | 1.0+ | `libadwaita` | |
 | PyGObject | 3.42+ | `python3-gobject` | Binding Python per GTK |
 | WebKitGTK | 6.0+ | `webkitgtk6.0` | Per autenticazione SAML/SSO (Fortinet) |
-| libsecret | 1.0+ | `libsecret` | Storage credenziali (GNOME Keyring / KDE Wallet) |
+| libsecret | 1.0+ | `libsecret` | Opzionale (compatibilità futura) |
 | PolicyKit | — | `polkit` | Elevazione privilegi per la connessione |
 | AppIndicator3 | — | `libappindicator-gtk3` | Icona nel system tray |
 
@@ -228,9 +228,11 @@ I profili in `~/.config/fortyfax/` **non** vengono rimossi.
 
 1. Seleziona il profilo GlobalProtect
 2. Clicca **"Connetti"**
-3. Per SSO: si apre il **browser di sistema** con la pagina di login (gestito da gpclient)
-4. Per Password: inserisci la password nel dialog
+3. Per SSO: si apre **Chrome/Edge** (o il browser predefinito) con la pagina di login dell'IdP. Il password manager del browser ricorda le credenziali SSO.
+4. Per Password: se la password è salvata nel profilo, la connessione parte automaticamente. Altrimenti viene chiesta.
 5. La connessione VPN parte. Se configurati, i domini DNS extra vengono applicati automaticamente
+
+**Scelta del browser SSO**: da **Preferenze > Browser SSO** puoi scegliere quale browser usare per il login GlobalProtect. In modalità "Automatico", Fortyfax cerca nell'ordine: Google Chrome/Chromium, Microsoft Edge, browser predefinito di sistema. Chrome e Edge hanno password manager integrati che ricordano le credenziali dell'Identity Provider.
 
 **Campi specifici GlobalProtect:**
 
@@ -242,28 +244,20 @@ I profili in `~/.config/fortyfax/` **non** vengono rimossi.
 - **Disabilita DTLS**: forza TCP per connessioni più stabili
 - **Fix OpenSSL legacy**: compatibilità con server VPN datati
 
-### Credenziali SSO salvate
+### Credenziali salvate
 
-Per evitare di inserire email e password ogni volta che ci si connette a un profilo SAML/SSO:
+Per qualsiasi profilo (SAML/SSO o Password), username e password possono essere salvati direttamente nell'editor del profilo:
 
 1. Apri l'editor del profilo VPN (icona matita)
-2. Nella sezione **"Credenziali SSO"** inserisci:
-   - **Email / Username SSO**: l'indirizzo email usato per il login sull'IdP (es. `nome.cognome@cliente.com`)
-   - **Password SSO**: la password dell'account IdP
-3. Salva il profilo
+2. Seleziona il metodo di autenticazione (SAML/SSO o Password)
+3. Compila i campi **Username** e **Password** (le label cambiano in base al metodo scelto)
+4. Salva il profilo
 
-Al prossimo **"Connetti"**, la webview SSO compilerà automaticamente i campi email e password nel form di login dell'Identity Provider (Microsoft, Okta, Google, ecc.).
+**Per SAML/SSO**: al prossimo **"Connetti"**, la webview compilerà automaticamente i campi email e password nel form di login dell'Identity Provider (Keycloak, Microsoft, Okta, Google, ecc.).
 
-La password è salvata nel **portachiavi di sistema** (GNOME Keyring / KDE Wallet) tramite libsecret, non in chiaro su disco.
+**Per Password**: la connessione parte automaticamente senza chiedere nulla. Se la password non e salvata, viene chiesta con un dialog.
 
-### Connessione con password
-
-1. Seleziona il profilo con autenticazione password
-2. Clicca **"Connetti"**
-3. Se la password è salvata nel profilo, la connessione parte automaticamente
-4. Altrimenti, inserisci la password nel dialog
-
-Per salvare la password: apri l'editor del profilo (icona matita), compila il campo **"Password VPN"** nel gruppo Autenticazione, e salva. La password viene **cifrata** (PBKDF2 + salt random) e salvata nel file JSON del profilo. La chiave di cifratura e in `~/.config/fortyfax/.secret` (permessi `0600`), generata automaticamente al primo utilizzo.
+Le password sono **cifrate** (PBKDF2 + salt random) e salvate nel file JSON del profilo. La chiave di cifratura e in `~/.config/fortyfax/.secret` (permessi `0600`), generata automaticamente al primo utilizzo.
 
 ### Certificato trusted
 
@@ -325,7 +319,7 @@ fortyfax/
     ├── auth.py                # Autenticazione SAML/SSO via WebKitGTK (Fortinet)
     ├── check.py               # Verifica prerequisiti di sistema (Fortinet + GlobalProtect)
     ├── connection.py          # Gestione connessione VPN (Fortinet + GlobalProtect + DNS watchdog)
-    ├── credential_store.py    # Storage credenziali SSO via libsecret (GNOME Keyring / KDE Wallet)
+    ├── credential_store.py    # Storage credenziali via libsecret (legacy, compatibilità)
     ├── crypto.py              # Cifratura locale password VPN (PBKDF2 + salt)
     ├── dialogs.py             # Dialog: editor profili, password, log viewer, preferenze
     ├── profile.py             # Modello dati profili + persistenza JSON
@@ -433,11 +427,19 @@ Le impostazioni globali sono salvate in `~/.config/fortyfax/settings.json`:
 ```json
 {
   "theme": "system",
-  "notifications": true
+  "notifications": true,
+  "sso_browser": "auto"
 }
 ```
 
 Valori disponibili per `notifications`: `true` (default) o `false`.
+
+Valori disponibili per `sso_browser`:
+
+- `"auto"` — cerca Chrome/Chromium, poi Edge, poi browser predefinito (default)
+- `"chrome"` — forza Google Chrome o Chromium
+- `"edge"` — forza Microsoft Edge
+- `"xdg-open"` — usa il browser predefinito di sistema
 
 Valori disponibili per `theme`:
 
