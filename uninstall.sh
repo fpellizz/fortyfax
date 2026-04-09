@@ -16,5 +16,12 @@ rm -f "/usr/local/bin/fortyfax-vpn-helper"
 rm -f "/usr/share/applications/${APP_NAME}.desktop"
 rm -f "/usr/share/polkit-1/actions/com.github.fortyfax.policy"
 
+# Remove app icons from system theme
+for size in 16 24 32 48 64 128 256 512; do
+    rm -f "/usr/share/icons/hicolor/${size}x${size}/apps/com.github.fortyfax.png"
+done
+rm -f "/usr/share/icons/hicolor/scalable/apps/com.github.fortyfax.svg"
+gtk-update-icon-cache -f -t /usr/share/icons/hicolor 2>/dev/null || true
+
 echo "✓ Disinstallazione completata."
 echo "  I profili VPN in ~/.config/fortyfax/ NON sono stati rimossi."

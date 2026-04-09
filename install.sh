@@ -74,19 +74,31 @@ echo "Creazione link ${BIN_LINK}..."
 ln -sf "${INSTALL_DIR}/fortyfax-bin" "${BIN_LINK}"
 ln -sf "${INSTALL_DIR}/fortyfax-vpn-helper" "/usr/local/bin/fortyfax-vpn-helper"
 
+# Install app icon into system hicolor theme
+echo "Installazione icone..."
+for size in 16 24 32 48 64 128 256 512; do
+    dest="/usr/share/icons/hicolor/${size}x${size}/apps"
+    mkdir -p "$dest"
+    cp "${APP_DIR}/icons/fortyfax_${size}.png" "$dest/com.github.fortyfax.png"
+done
+mkdir -p "/usr/share/icons/hicolor/scalable/apps"
+cp "${APP_DIR}/icons/fortyfax.svg" "/usr/share/icons/hicolor/scalable/apps/com.github.fortyfax.svg"
+gtk-update-icon-cache -f -t /usr/share/icons/hicolor 2>/dev/null || true
+
 # Create .desktop file
 echo "Creazione file .desktop..."
 cat > "${DESKTOP_FILE}" <<DESKTOP
 [Desktop Entry]
 Name=Fortyfax
-Comment=GUI per openfortivpn con supporto SAML/SSO
+Comment=GUI per openfortivpn e GlobalProtect con supporto SAML/SSO
 Exec=${BIN_LINK}
-Icon=network-vpn
+Icon=com.github.fortyfax
 Type=Application
 Terminal=false
 Categories=Network;VPN;Security;
-Keywords=VPN;Fortinet;FortiGate;SSL;SAML;SSO;
+Keywords=VPN;Fortinet;FortiGate;GlobalProtect;PaloAlto;SSL;SAML;SSO;
 StartupNotify=true
+StartupWMClass=com.github.fortyfax
 DESKTOP
 
 # Create polkit policy for openfortivpn (allows running without password prompt each time)
