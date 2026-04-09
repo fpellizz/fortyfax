@@ -187,6 +187,42 @@ cd fortyfax
 python3 ./fortyfax-bin
 ```
 
+### Installazione da pacchetto (RPM / DEB)
+
+I pacchetti pre-compilati sono disponibili nella sezione [Downloads](https://bitbucket.org/decisyon/fortyfax/downloads/) del repository. Vengono generati automaticamente dalla pipeline CI/CD ad ogni tag `v*`.
+
+**Fedora / RHEL:**
+
+```bash
+sudo dnf install ./fortyfax-2.2.0-1.noarch.rpm
+```
+
+**Debian / Ubuntu:**
+
+```bash
+sudo apt install ./fortyfax_2.2.0_all.deb
+```
+
+I pacchetti installano automaticamente l'applicazione in `/usr/share/fortyfax`, il launcher in `/usr/bin/fortyfax`, il file `.desktop`, le icone e la policy PolicyKit.
+
+### Build dei pacchetti
+
+Per generare i pacchetti RPM e DEB dal sorgente:
+
+```bash
+# Prerequisito: fpm
+sudo gem install fpm
+
+# Build entrambi
+./build-pkg.sh
+
+# Solo RPM o solo DEB
+./build-pkg.sh rpm
+./build-pkg.sh deb
+```
+
+I pacchetti vengono generati nella cartella `dist/`.
+
 ### Verifica prerequisiti
 
 L'applicazione include un checker integrato. Puoi eseguirlo standalone:
@@ -328,7 +364,8 @@ Clicca **"Disconnetti"** per terminare la connessione VPN in modo pulito.
 fortyfax/
 ├── fortyfax-bin              # Launcher eseguibile
 ├── fortyfax-vpn-helper       # Helper per avvio/stop VPN (openfortivpn/gpclient) via pkexec
-├── install.sh                # Script di installazione di sistema
+├── build-pkg.sh              # Script per generare pacchetti RPM e DEB
+├── install.sh                # Script di installazione di sistema (alternativa ai pacchetti)
 ├── uninstall.sh              # Script di rimozione
 ├── README.md
 ├── LICENSE
@@ -625,7 +662,7 @@ python3 -m fortyfax.check
 - [x] Supporto GlobalProtect (Palo Alto) con DNS watchdog
 - [ ] Auto-connect all'avvio del sistema
 - [ ] Supporto multi-connessione simultanea
-- [ ] Packaging RPM/Flatpak
+- [x] Packaging RPM/DEB
 
 ## Licenza
 
