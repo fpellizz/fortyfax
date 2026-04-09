@@ -364,18 +364,10 @@ class MainWindow(Adw.ApplicationWindow):
     def _start_globalprotect(self, profile: VPNProfile):
         """Start GlobalProtect connection. SSO uses system browser automatically."""
         if profile.auth_method == "password":
-            dialog = PasswordDialog(profile_name=profile.name)
-            dialog.connect("response", self._on_gp_password_response, profile)
-            dialog.present(self)
+            self._start_password_auth(profile)
         else:
             # SSO: gpclient opens the system browser itself
             self._connection.connect(profile)
-
-    def _on_gp_password_response(self, dialog, response, profile):
-        if response == "connect":
-            password = dialog.password
-            if password:
-                self._connection.connect(profile, password=password)
 
     def _start_saml_auth(self, profile: VPNProfile):
         try:
@@ -415,6 +407,13 @@ class MainWindow(Adw.ApplicationWindow):
         return False  # remove idle callback
 
     def _start_password_auth(self, profile: VPNProfile):
+        # Try saved password from keyring first
+        from .credential_store import lookup_vpn_password
+        saved_pwd = lookup_vpn_password(profile.uid)
+        if saved_pwd:
+            self._connection.connect(profile, password=saved_pwd)
+            return
+        # No saved password, ask the user
         dialog = PasswordDialog(profile_name=profile.name)
         dialog.connect("response", self._on_password_response, profile)
         dialog.present(self)

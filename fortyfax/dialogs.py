@@ -106,6 +106,17 @@ class ProfileEditorDialog(Adw.Dialog):
         self._realm_row = Adw.EntryRow(title="Realm (opzionale)")
         auth_group.add(self._realm_row)
 
+        self._vpn_password_row = Adw.PasswordEntryRow(title="Password VPN (salvata nel portachiavi)")
+        auth_group.add(self._vpn_password_row)
+
+        vpn_pwd_info = Adw.ActionRow(
+            subtitle="Se compilata, la password viene usata automaticamente "
+                     "alla connessione. Salvata nel portachiavi di sistema, non su disco."
+        )
+        vpn_pwd_info.add_css_class("property")
+        auth_group.add(vpn_pwd_info)
+        self._vpn_pwd_info = vpn_pwd_info
+
         self._auth_saml_check.connect("toggled", self._on_auth_method_changed)
         self._auth_pass_check.connect("toggled", self._on_auth_method_changed)
 
@@ -265,6 +276,11 @@ class ProfileEditorDialog(Adw.Dialog):
         self._gp_no_dtls_switch.set_active(p.gp_no_dtls)
         self._gp_fix_openssl_switch.set_active(p.gp_fix_openssl)
 
+        # VPN password (from keyring)
+        vpn_pwd = credential_store.lookup_vpn_password(p.uid)
+        if vpn_pwd:
+            self._vpn_password_row.set_text(vpn_pwd)
+
         # SSO credentials
         self._sso_username_row.set_text(p.sso_username)
         sso_pwd = credential_store.lookup_sso_password(p.uid)
@@ -281,13 +297,17 @@ class ProfileEditorDialog(Adw.Dialog):
 
     def _on_vpn_type_changed(self, row, pspec):
         is_gp = self._vpn_type_row.get_selected() == 1
+        is_password = self._auth_pass_check.get_active()
         # Fortinet-only sections
         self._port_row.set_visible(not is_gp)
         self._security_group.set_visible(not is_gp)
         self._network_group.set_visible(not is_gp)
         self._realm_row.set_visible(not is_gp)
         # SSO auto-fill only for Fortinet (GP uses system browser)
-        self._sso_group.set_visible(not is_gp and self._auth_saml_check.get_active())
+        self._sso_group.set_visible(not is_gp and not is_password)
+        # VPN password visible for password auth
+        self._vpn_password_row.set_visible(is_password)
+        self._vpn_pwd_info.set_visible(is_password)
         # GlobalProtect-only section
         self._gp_group.set_visible(is_gp)
         # Username is always visible for GP
@@ -298,6 +318,9 @@ class ProfileEditorDialog(Adw.Dialog):
         is_password = self._auth_pass_check.get_active()
         is_gp = self._vpn_type_row.get_selected() == 1
         self._username_row.set_sensitive(is_password or is_gp)
+        # VPN password field visible only for password auth
+        self._vpn_password_row.set_visible(is_password)
+        self._vpn_pwd_info.set_visible(is_password)
         # SSO auto-fill only for Fortinet SAML
         self._sso_group.set_visible(not is_password and not is_gp)
 
@@ -328,6 +351,13 @@ class ProfileEditorDialog(Adw.Dialog):
         p.gp_mtu = int(self._gp_mtu_adj.get_value())
         p.gp_no_dtls = self._gp_no_dtls_switch.get_active()
         p.gp_fix_openssl = self._gp_fix_openssl_switch.get_active()
+
+        # Save VPN password in keyring
+        vpn_pwd = self._vpn_password_row.get_text()
+        if vpn_pwd:
+            credential_store.store_vpn_password(p.uid, p.name, vpn_pwd)
+        else:
+            credential_store.clear_vpn_password(p.uid)
 
         # Save SSO password in keyring (only for Fortinet SAML)
         sso_pwd = self._sso_password_row.get_text()
