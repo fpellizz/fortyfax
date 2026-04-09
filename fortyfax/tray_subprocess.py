@@ -31,6 +31,16 @@ ICONS_DIR = os.path.realpath(
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "icons")
 )
 
+# System icon names for tray states (compatible with Breeze/Adwaita/hicolor)
+_TRAY_ICONS = {
+    "CONNECTED": "network-vpn",
+    "CONNECTING": "network-vpn",
+    "DISCONNECTING": "network-vpn",
+    "DISCONNECTED": "network-offline",
+    "ERROR": "dialog-error",
+}
+_TRAY_ICON_DEFAULT = "network-offline"
+
 
 class TraySubprocess:
     def __init__(self):
@@ -40,9 +50,10 @@ class TraySubprocess:
 
         self._indicator = AppIndicator3.Indicator.new(
             "fortyfax-vpn",
-            os.path.join(ICONS_DIR, "tray_disconnected_32.png"),
+            _TRAY_ICONS["DISCONNECTED"],
             AppIndicator3.IndicatorCategory.APPLICATION_STATUS,
         )
+        self._indicator.set_icon_theme_path(ICONS_DIR)
         self._indicator.set_status(AppIndicator3.IndicatorStatus.ACTIVE)
         self._indicator.set_title("Fortyfax VPN")
 
@@ -141,16 +152,8 @@ class TraySubprocess:
     def _update_state(self, state, message=""):
         self._state = state
 
-        icon_map = {
-            "CONNECTED": "tray_connected_32.png",
-            "CONNECTING": "tray_disconnected_32.png",
-            "DISCONNECTING": "tray_disconnected_32.png",
-            "ERROR": "tray_error_32.png",
-        }
-        icon = icon_map.get(state, "tray_disconnected_32.png")
-        self._indicator.set_icon_full(
-            os.path.join(ICONS_DIR, icon), f"Fortyfax — {state}",
-        )
+        icon = _TRAY_ICONS.get(state, _TRAY_ICON_DEFAULT)
+        self._indicator.set_icon_full(icon, f"Fortyfax — {state}")
 
         labels = {
             "DISCONNECTED": "Disconnesso",

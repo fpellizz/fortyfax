@@ -177,7 +177,7 @@ class FortyfaxApp(Adw.Application):
             application_icon="network-vpn-symbolic",
             version=__version__,
             developer_name="Fortyfax",
-            comments="GUI per openfortivpn con supporto SAML/SSO",
+            comments="GUI per openfortivpn e GlobalProtect con supporto SAML/SSO",
             license_type=Gtk.License.GPL_3_0,
             website="https://bitbucket.org/decisyon/fortyfax",
         )

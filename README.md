@@ -36,20 +36,11 @@ Funzionalità principali:
 
 > Per catturare gli screenshot: avvia Fortyfax, usa `Spectacle` (KDE) o `gnome-screenshot` (GNOME) e salva le immagini nella cartella `screenshots/`.
 
-| Schermata | Descrizione |
-| --------- | ----------- |
-| ![Finestra principale](screenshots/main_window.png) | Lista profili VPN con stato connessione |
-| ![Editor profilo GP](screenshots/profile_editor_gp.png) | Editor profilo con tipo VPN GlobalProtect |
-| ![Editor profilo Fortinet](screenshots/profile_editor_fortinet.png) | Editor profilo con tipo VPN Fortinet |
-| ![Preferenze](screenshots/preferences.png) | Preferenze: tema e notifiche |
+### Icona applicazione
 
-### Icone tray
+![Fortyfax](icons/fortyfax_128.png)
 
-| Stato | Icona |
-| ----- | ----- |
-| Connesso | ![Connesso](icons/tray_connected_48.png) |
-| Disconnesso | ![Disconnesso](icons/tray_disconnected_48.png) |
-| Errore | ![Errore](icons/tray_error_48.png) |
+L'icona tray utilizza le icone simboliche di sistema (`network-vpn`, `network-offline`, `dialog-error`) che si adattano automaticamente al tema del desktop (Breeze su KDE, Adwaita su GNOME).
 
 ## Funzionalita
 
@@ -317,12 +308,9 @@ fortyfax/
 ├── uninstall.sh              # Script di rimozione
 ├── README.md
 ├── LICENSE
-├── icons/                    # Icone applicazione e tray
-│   ├── app_icon_dark*.png     # Icona app (sfondo scuro)
-│   ├── app_icon_light*.png    # Icona app (sfondo chiaro)
-│   ├── tray_icon*.png         # Icona tray (connesso/in corso)
-│   ├── tray_icon_gray*.png    # Icona tray (disconnesso)
-│   └── notif_icon*.png        # Icona notifica/connesso
+├── icons/                    # Icone applicazione
+│   ├── fortyfax.svg           # Icona app sorgente (SVG vettoriale)
+│   └── fortyfax_*.png         # Icona app in varie dimensioni (16-512px)
 └── fortyfax/                 # Package Python
     ├── __init__.py            # Metadati (versione, app_id)
     ├── __main__.py            # Entry point per `python -m fortyfax`
