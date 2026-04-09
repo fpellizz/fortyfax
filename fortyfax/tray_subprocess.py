@@ -53,7 +53,6 @@ class TraySubprocess:
             _TRAY_ICONS["DISCONNECTED"],
             AppIndicator3.IndicatorCategory.APPLICATION_STATUS,
         )
-        self._indicator.set_icon_theme_path(ICONS_DIR)
         self._indicator.set_status(AppIndicator3.IndicatorStatus.ACTIVE)
         self._indicator.set_title("Fortyfax VPN")
 
