@@ -31,16 +31,15 @@ ICONS_DIR = os.path.realpath(
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "icons")
 )
 
-# Custom tray icon PNGs (shield in different colors)
+# Tray icon names (without extension — AppIndicator looks them up via icon theme)
 _TRAY_ICONS = {
-    "CONNECTED": os.path.join(ICONS_DIR, "tray_connected_32.png"),
-    "CONNECTING": os.path.join(ICONS_DIR, "tray_idle_32.png"),
-    "DISCONNECTING": os.path.join(ICONS_DIR, "tray_disconnected_32.png"),
-    "DISCONNECTED": os.path.join(ICONS_DIR, "tray_disconnected_32.png"),
-    "ERROR": os.path.join(ICONS_DIR, "tray_error_32.png"),
-    "IDLE": os.path.join(ICONS_DIR, "tray_idle_32.png"),
+    "CONNECTED": "tray_connected_32",
+    "CONNECTING": "tray_idle_32",
+    "DISCONNECTING": "tray_disconnected_32",
+    "DISCONNECTED": "tray_disconnected_32",
+    "ERROR": "tray_error_32",
 }
-_TRAY_ICON_DEFAULT = os.path.join(ICONS_DIR, "tray_idle_32.png")
+_TRAY_ICON_DEFAULT = "tray_idle_32"
 
 
 class TraySubprocess:
@@ -54,6 +53,7 @@ class TraySubprocess:
             _TRAY_ICON_DEFAULT,
             AppIndicator3.IndicatorCategory.APPLICATION_STATUS,
         )
+        self._indicator.set_icon_theme_path(ICONS_DIR)
         self._indicator.set_status(AppIndicator3.IndicatorStatus.ACTIVE)
         self._indicator.set_title("Fortyfax VPN")
 
