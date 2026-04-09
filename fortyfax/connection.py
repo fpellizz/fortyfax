@@ -30,6 +30,7 @@ class VPNConnection:
     def __init__(self):
         self._process: subprocess.Popen | None = None
         self._state = ConnectionState.DISCONNECTED
+        self._vpn_type: str = "fortinet"  # track active connection type
         self._monitor_thread: threading.Thread | None = None
         self._dns_watchdog_thread: threading.Thread | None = None
         self._dns_watchdog_stop = threading.Event()
@@ -162,6 +163,15 @@ class VPNConnection:
 
     # --- GlobalProtect (gpclient) ---
 
+    @staticmethod
+    def _kill_stale_gpclient():
+        """Kill any leftover gpclient/openconnect processes from previous runs."""
+        for proc_name in ["gpclient", "openconnect"]:
+            try:
+                subprocess.run(["pkill", "-f", proc_name], capture_output=True, timeout=5)
+            except Exception:
+                pass
+
     def _connect_globalprotect(self, profile: VPNProfile, password: str = "") -> bool:
         """Start GlobalProtect (gpclient) connection."""
         with self._lock:
@@ -169,6 +179,11 @@ class VPNConnection:
                 return False
 
             self._log_lines.clear()
+
+            # Kill stale gpclient processes to avoid "Another instance already running"
+            self._kill_stale_gpclient()
+
+            self._vpn_type = "globalprotect"
             self._set_state(ConnectionState.CONNECTING, f"Connessione a {profile.display_host}...")
 
             # Build gpclient command
@@ -496,6 +511,16 @@ class VPNConnection:
             self._set_state(ConnectionState.DISCONNECTING, "Disconnessione in corso...")
             self._stop_dns_watchdog()
 
+            if self._vpn_type == "globalprotect":
+                # gpclient needs its own disconnect command to clean up properly
+                try:
+                    subprocess.run(
+                        ["pkexec", _HELPER, "start", "gpclient", "disconnect"],
+                        timeout=10, capture_output=True,
+                    )
+                except Exception:
+                    pass
+
             try:
                 self._process.terminate()
             except PermissionError:
@@ -509,6 +534,10 @@ class VPNConnection:
                     pass
             except ProcessLookupError:
                 pass
+
+            # Clean up any leftover GP processes
+            if self._vpn_type == "globalprotect":
+                self._kill_stale_gpclient()
 
     def force_disconnect(self):
         """Force kill the connection."""
