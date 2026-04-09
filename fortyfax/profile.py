@@ -66,7 +66,11 @@ class VPNProfile:
 
     def to_gpclient_args(self) -> list[str]:
         """Build gpclient CLI arguments from this profile."""
-        args = ["connect", self.host]
+        # --fix-openssl MUST come before the 'connect' subcommand
+        args = []
+        if self.gp_fix_openssl:
+            args.append("--fix-openssl")
+        args += ["connect", self.host]
         if self.gp_gateway:
             args += ["--gateway", self.gp_gateway]
         if self.username:
@@ -77,8 +81,6 @@ class VPNProfile:
             args += ["--mtu", str(self.gp_mtu)]
         if self.gp_no_dtls:
             args.append("--no-dtls")
-        if self.gp_fix_openssl:
-            args.append("--fix-openssl")
         if self.extra_args:
             args += self.extra_args.split()
         return args

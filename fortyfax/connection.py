@@ -178,6 +178,8 @@ class VPNConnection:
                 # SSO: use system browser via wrapper
                 browser_wrapper = self._create_browser_wrapper()
                 gp_args += ["--browser", browser_wrapper]
+            elif profile.auth_method == "password" and password:
+                gp_args.append("--passwd-on-stdin")
 
             # Find vpnc-script for network setup
             vpnc_script = self._find_vpnc_script()
@@ -234,16 +236,17 @@ class VPNConnection:
                 line = line.rstrip("\n")
                 self._append_log(line)
 
-                # Detect connection success
-                if "Connected" in line or "Tunnel is up" in line or "connected to" in line.lower():
+                # Detect connection success (gpclient specific messages)
+                if "Connected to VPN" in line or "ESP tunnel connected" in line or "Tunnel is up" in line:
                     self._set_state(ConnectionState.CONNECTED, "Tunnel GlobalProtect attivo")
                     # Start DNS watchdog if needed
                     if profile.gp_extra_dns or profile.gp_vpn_dns:
                         self._start_dns_watchdog(profile)
 
-                # Detect errors
-                if "error" in line.lower() and "ERROR" in line:
-                    if self._state == ConnectionState.CONNECTING:
+                # Detect errors (but ignore low-level connection log lines)
+                if "ERROR" in line and self._state == ConnectionState.CONNECTING:
+                    # Skip false positives from debug connection logs
+                    if "connect" not in line.lower() or "failed" in line.lower():
                         self._set_state(ConnectionState.ERROR, line)
 
         except Exception as e:
@@ -286,8 +289,13 @@ class VPNConnection:
 
     @staticmethod
     def _create_browser_wrapper() -> str:
-        """Create a wrapper script that opens the browser as the real user."""
-        real_user = os.environ.get("USER", os.environ.get("LOGNAME", ""))
+        """Create a wrapper script that opens the browser as the real user.
+
+        This is called BEFORE pkexec elevation, so os.getuid() is the real user.
+        The wrapper must use sudo -u because gpclient runs as root via pkexec.
+        """
+        import pwd
+        real_user = pwd.getpwuid(os.getuid()).pw_name
         path = "/tmp/fortyfax_browser_wrapper.sh"
         with open(path, "w") as f:
             f.write(f'#!/bin/bash\nsudo -u {real_user} /usr/bin/xdg-open "$@"\n')
