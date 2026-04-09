@@ -40,7 +40,14 @@ Funzionalità principali:
 
 ![Fortyfax](icons/fortyfax_128.png)
 
-L'icona tray utilizza le icone simboliche di sistema (`network-vpn`, `network-offline`, `dialog-error`) che si adattano automaticamente al tema del desktop (Breeze su KDE, Adwaita su GNOME).
+L'icona nella system tray cambia colore in base allo stato della VPN:
+
+| Stato | Icona | Colore |
+| ----- | ----- | ------ |
+| App avviata, nessuna VPN | ![Idle](icons/tray_idle_32.png) | Bianco |
+| VPN connessa | ![Connesso](icons/tray_connected_32.png) | Verde |
+| VPN disconnessa | ![Disconnesso](icons/tray_disconnected_32.png) | Grigio |
+| Errore | ![Errore](icons/tray_error_32.png) | Giallo |
 
 ## Funzionalita
 
@@ -81,10 +88,10 @@ L'icona tray utilizza le icone simboliche di sistema (`network-vpn`, `network-of
 
 ### Interfaccia
 
-- Design nativo GNOME con libadwaita
+- Design nativo con libadwaita (compatibile GNOME e KDE Plasma)
 - Stato connessione con feedback visivo (icone, spinner, banner)
 - **Icona nel system tray** (AppIndicator3):
-  - Icona che cambia in base allo stato: verde (connesso), trasparente (disconnesso), rosso (errore)
+  - Scudo colorato in base allo stato: bianco (idle), verde (connesso), grigio (disconnesso), giallo (errore)
   - Menu contestuale: stato, selezione profilo, connetti/disconnetti, mostra/nascondi, esci
   - Chiudere la finestra la nasconde nel tray (l'app resta attiva)
   - Compatibile con KDE Plasma, GNOME (con estensione AppIndicator), XFCE
