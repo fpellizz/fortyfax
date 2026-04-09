@@ -103,46 +103,20 @@ class ProfileEditorDialog(Adw.Dialog):
         self._username_row = Adw.EntryRow(title="Username")
         auth_group.add(self._username_row)
 
+        self._password_row = Adw.PasswordEntryRow(title="Password")
+        auth_group.add(self._password_row)
+
         self._realm_row = Adw.EntryRow(title="Realm (opzionale)")
         auth_group.add(self._realm_row)
 
-        self._vpn_password_row = Adw.PasswordEntryRow(title="Password VPN")
-        auth_group.add(self._vpn_password_row)
-
-        vpn_pwd_info = Adw.ActionRow(
-            subtitle="Se compilata, la password viene usata automaticamente "
-                     "alla connessione. Salvata cifrata nel profilo."
-        )
-        vpn_pwd_info.add_css_class("property")
-        auth_group.add(vpn_pwd_info)
-        self._vpn_pwd_info = vpn_pwd_info
+        self._auth_info = Adw.ActionRow()
+        self._auth_info.add_css_class("property")
+        auth_group.add(self._auth_info)
 
         self._auth_saml_check.connect("toggled", self._on_auth_method_changed)
         self._auth_pass_check.connect("toggled", self._on_auth_method_changed)
 
         main_box.append(auth_group)
-
-        # --- SSO Credentials group (Fortinet only: auto-fill webview) ---
-        self._sso_group = Adw.PreferencesGroup(
-            title="Credenziali SSO",
-            description="Compilazione automatica del form di login dell'Identity Provider",
-        )
-
-        self._sso_username_row = Adw.EntryRow(title="Email / Username SSO")
-        self._sso_username_row.set_input_purpose(Gtk.InputPurpose.EMAIL)
-        self._sso_group.add(self._sso_username_row)
-
-        self._sso_password_row = Adw.PasswordEntryRow(title="Password SSO")
-        self._sso_group.add(self._sso_password_row)
-
-        sso_info = Adw.ActionRow(
-            subtitle="Le credenziali vengono usate per compilare automaticamente "
-                     "il form di login SSO. La password è salvata nel portachiavi di sistema."
-        )
-        sso_info.add_css_class("property")
-        self._sso_group.add(sso_info)
-
-        main_box.append(self._sso_group)
 
         # --- Security group (Fortinet only) ---
         self._security_group = Adw.PreferencesGroup(title="Sicurezza")
@@ -276,61 +250,68 @@ class ProfileEditorDialog(Adw.Dialog):
         self._gp_no_dtls_switch.set_active(p.gp_no_dtls)
         self._gp_fix_openssl_switch.set_active(p.gp_fix_openssl)
 
-        # VPN password (from encrypted field in profile)
         from . import crypto
-        vpn_pwd = crypto.decrypt(p.encrypted_password)
-        if vpn_pwd:
-            self._vpn_password_row.set_text(vpn_pwd)
-
-        # SSO credentials (encrypted in profile)
-        self._sso_username_row.set_text(p.sso_username)
-        sso_pwd = crypto.decrypt(p.encrypted_sso_password)
-        if sso_pwd:
-            self._sso_password_row.set_text(sso_pwd)
 
         if p.auth_method == "saml":
             self._auth_saml_check.set_active(True)
+            # SSO: username is the SSO email, password is the SSO password
+            self._username_row.set_text(p.sso_username)
+            sso_pwd = crypto.decrypt(p.encrypted_sso_password)
+            if sso_pwd:
+                self._password_row.set_text(sso_pwd)
         else:
             self._auth_pass_check.set_active(True)
+            # Password auth: VPN username + VPN password
+            self._username_row.set_text(p.username)
+            vpn_pwd = crypto.decrypt(p.encrypted_password)
+            if vpn_pwd:
+                self._password_row.set_text(vpn_pwd)
 
         self._on_auth_method_changed(None)
         self._on_vpn_type_changed(None, None)
 
     def _on_vpn_type_changed(self, row, pspec):
         is_gp = self._vpn_type_row.get_selected() == 1
-        is_password = self._auth_pass_check.get_active()
         # Fortinet-only sections
         self._port_row.set_visible(not is_gp)
         self._security_group.set_visible(not is_gp)
         self._network_group.set_visible(not is_gp)
         self._realm_row.set_visible(not is_gp)
-        # SSO auto-fill only for Fortinet (GP uses system browser)
-        self._sso_group.set_visible(not is_gp and not is_password)
-        # VPN password visible for password auth
-        self._vpn_password_row.set_visible(is_password)
-        self._vpn_pwd_info.set_visible(is_password)
         # GlobalProtect-only section
         self._gp_group.set_visible(is_gp)
-        # Username is always visible for GP
-        if is_gp:
-            self._username_row.set_sensitive(True)
+        # Update labels
+        self._on_auth_method_changed(None)
 
     def _on_auth_method_changed(self, widget):
-        is_password = self._auth_pass_check.get_active()
+        is_saml = self._auth_saml_check.get_active()
         is_gp = self._vpn_type_row.get_selected() == 1
-        self._username_row.set_sensitive(is_password or is_gp)
-        # VPN password field visible only for password auth
-        self._vpn_password_row.set_visible(is_password)
-        self._vpn_pwd_info.set_visible(is_password)
-        # SSO auto-fill only for Fortinet SAML
-        self._sso_group.set_visible(not is_password and not is_gp)
+        # Username and password are ALWAYS enabled and visible
+        if is_saml:
+            self._username_row.set_title("Email / Username SSO")
+            self._username_row.set_input_purpose(Gtk.InputPurpose.EMAIL)
+            self._password_row.set_title("Password SSO")
+            self._auth_info.set_subtitle(
+                "Le credenziali vengono usate per compilare automaticamente "
+                "il form di login dell'Identity Provider. Salvate cifrate nel profilo."
+            )
+        else:
+            self._username_row.set_title("Username")
+            self._username_row.set_input_purpose(Gtk.InputPurpose.FREE_FORM)
+            self._password_row.set_title("Password VPN")
+            self._auth_info.set_subtitle(
+                "La password viene usata automaticamente alla connessione. "
+                "Salvata cifrata nel profilo."
+            )
+        # Realm only for Fortinet
+        self._realm_row.set_visible(not is_gp)
 
     def _on_save(self, button):
         p = self._profile
+        from . import crypto
+
         p.name = self._name_row.get_text().strip()
         p.host = self._host_row.get_text().strip()
         p.port = int(self._port_adj.get_value())
-        p.username = self._username_row.get_text().strip()
         p.realm = self._realm_row.get_text().strip()
         p.trusted_cert = self._cert_row.get_text().strip()
         p.auth_method = "saml" if self._auth_saml_check.get_active() else "password"
@@ -339,7 +320,21 @@ class ProfileEditorDialog(Adw.Dialog):
         p.pppd_use_peerdns = self._peerdns_switch.get_active()
         p.half_internet_routes = self._half_routes_switch.get_active()
         p.extra_args = self._extra_args_row.get_text().strip()
-        p.sso_username = self._sso_username_row.get_text().strip()
+
+        # Username and password go to the right fields based on auth method
+        username = self._username_row.get_text().strip()
+        password = self._password_row.get_text()
+
+        if p.auth_method == "saml":
+            p.sso_username = username
+            p.username = ""
+            p.encrypted_sso_password = crypto.encrypt(password) if password else ""
+            p.encrypted_password = ""
+        else:
+            p.username = username
+            p.sso_username = ""
+            p.encrypted_password = crypto.encrypt(password) if password else ""
+            p.encrypted_sso_password = ""
 
         # VPN type
         p.vpn_type = "globalprotect" if self._vpn_type_row.get_selected() == 1 else "fortinet"
@@ -352,15 +347,6 @@ class ProfileEditorDialog(Adw.Dialog):
         p.gp_mtu = int(self._gp_mtu_adj.get_value())
         p.gp_no_dtls = self._gp_no_dtls_switch.get_active()
         p.gp_fix_openssl = self._gp_fix_openssl_switch.get_active()
-
-        # Save VPN password encrypted in profile
-        from . import crypto
-        vpn_pwd = self._vpn_password_row.get_text()
-        p.encrypted_password = crypto.encrypt(vpn_pwd) if vpn_pwd else ""
-
-        # Save SSO password encrypted in profile
-        sso_pwd = self._sso_password_row.get_text()
-        p.encrypted_sso_password = crypto.encrypt(sso_pwd) if sso_pwd else ""
 
         errors = p.validate()
         if errors:
