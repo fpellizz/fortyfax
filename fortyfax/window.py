@@ -185,9 +185,10 @@ class MainWindow(Adw.ApplicationWindow):
             self._profiles_box.append(row)
 
     def _create_profile_row(self, profile: VPNProfile) -> Adw.ActionRow:
+        vpn_label = "GP" if profile.vpn_type == "globalprotect" else "Fortinet"
         row = Adw.ActionRow(
             title=profile.name,
-            subtitle=f"{profile.display_host}  •  {profile.auth_method.upper()}",
+            subtitle=f"{profile.display_host}  •  {vpn_label}  •  {profile.auth_method.upper()}",
             activatable=True,
         )
         row.set_name(profile.uid)
@@ -353,10 +354,28 @@ class MainWindow(Adw.ApplicationWindow):
 
         profile = self._active_profile
 
-        if profile.auth_method == "saml":
+        if profile.vpn_type == "globalprotect":
+            self._start_globalprotect(profile)
+        elif profile.auth_method == "saml":
             self._start_saml_auth(profile)
         else:
             self._start_password_auth(profile)
+
+    def _start_globalprotect(self, profile: VPNProfile):
+        """Start GlobalProtect connection. SSO uses system browser automatically."""
+        if profile.auth_method == "password":
+            dialog = PasswordDialog(profile_name=profile.name)
+            dialog.connect("response", self._on_gp_password_response, profile)
+            dialog.present(self)
+        else:
+            # SSO: gpclient opens the system browser itself
+            self._connection.connect(profile)
+
+    def _on_gp_password_response(self, dialog, response, profile):
+        if response == "connect":
+            password = dialog.password
+            if password:
+                self._connection.connect(profile, password=password)
 
     def _start_saml_auth(self, profile: VPNProfile):
         try:
