@@ -124,7 +124,7 @@ def check_pppd() -> CheckResult:
     # openfortivpn needs pppd
     for p in ["/usr/sbin/pppd", "/sbin/pppd"]:
         if shutil.which("pppd") or __import__("os").path.exists(p):
-            return CheckResult(name="pppd", ok=True, message=f"Trovato")
+            return CheckResult(name="pppd", ok=True, message="Trovato")
     return CheckResult(
         name="pppd",
         ok=False,
@@ -133,17 +133,86 @@ def check_pppd() -> CheckResult:
     )
 
 
-ALL_CHECKS = [
+def check_gpclient() -> CheckResult:
+    """Check for GlobalProtect-openconnect (gpclient)."""
+    path = shutil.which("gpclient")
+    if path:
+        return CheckResult(
+            name="gpclient (GlobalProtect)",
+            ok=True,
+            message=f"Trovato: {path}",
+        )
+    return CheckResult(
+        name="gpclient (GlobalProtect)",
+        ok=False,
+        message="Non trovato (necessario per VPN Palo Alto)",
+        fix="sudo dnf copr enable yuezk/globalprotect-openconnect && sudo dnf install globalprotect-openconnect",
+    )
+
+
+def check_openconnect() -> CheckResult:
+    """Check for openconnect (used by gpclient)."""
+    path = shutil.which("openconnect")
+    if path:
+        return CheckResult(
+            name="openconnect",
+            ok=True,
+            message=f"Trovato: {path}",
+        )
+    return CheckResult(
+        name="openconnect",
+        ok=False,
+        message="Non trovato (necessario per GlobalProtect)",
+        fix="sudo dnf install openconnect",
+    )
+
+
+def check_vpnc_script() -> CheckResult:
+    """Check for vpnc-script (used by gpclient for network setup)."""
+    for path in [
+        "/usr/share/vpnc-scripts/vpnc-script",
+        "/etc/vpnc/vpnc-script",
+        "/usr/sbin/vpnc-script",
+    ]:
+        if __import__("os").path.isfile(path):
+            return CheckResult(
+                name="vpnc-script",
+                ok=True,
+                message=f"Trovato: {path}",
+            )
+    return CheckResult(
+        name="vpnc-script",
+        ok=False,
+        message="Non trovato (necessario per GlobalProtect)",
+        fix="sudo dnf install vpnc-script",
+    )
+
+
+# Core checks (always run)
+CORE_CHECKS = [
     check_python_version,
-    check_openfortivpn,
     check_gtk4,
     check_adwaita,
     check_webkitgtk,
     check_libsecret,
     check_pkexec,
     check_appindicator,
+]
+
+# Fortinet-specific checks
+FORTINET_CHECKS = [
+    check_openfortivpn,
     check_pppd,
 ]
+
+# GlobalProtect-specific checks
+GLOBALPROTECT_CHECKS = [
+    check_gpclient,
+    check_openconnect,
+    check_vpnc_script,
+]
+
+ALL_CHECKS = CORE_CHECKS + FORTINET_CHECKS + GLOBALPROTECT_CHECKS
 
 
 def run_all_checks() -> list[CheckResult]:
@@ -168,15 +237,15 @@ def get_missing_deps_install_command(results: list[CheckResult]) -> str | None:
 def print_check_report(results: list[CheckResult]) -> bool:
     """Print a human-readable report. Returns True if all checks pass."""
     all_ok = True
-    print("\n╔══════════════════════════════════════════════════════╗")
-    print("║          Fortyfax - Verifica Prerequisiti       ║")
-    print("╠══════════════════════════════════════════════════════╣")
+    print("\n╔══════════════════════════════════════════════════════════════╗")
+    print("║            Fortyfax - Verifica Prerequisiti                 ║")
+    print("╠══════════════════════════════════════════════════════════════╣")
     for r in results:
         icon = "  ✓" if r.ok else "  ✗"
-        print(f"║ {icon}  {r.name:<20} {r.message:<27}║")
+        print(f"║ {icon}  {r.name:<24} {r.message:<30}║")
         if not r.ok:
             all_ok = False
-    print("╚══════════════════════════════════════════════════════╝")
+    print("╚══════════════════════════════════════════════════════════════╝")
 
     if not all_ok:
         cmd = get_missing_deps_install_command(results)

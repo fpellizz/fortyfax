@@ -62,6 +62,16 @@ class ProfileEditorDialog(Adw.Dialog):
         self._name_row = Adw.EntryRow(title="Nome profilo")
         general_group.add(self._name_row)
 
+        # VPN type selector
+        self._vpn_type_row = Adw.ComboRow(
+            title="Tipo VPN",
+            subtitle="Seleziona il tipo di server VPN",
+        )
+        vpn_type_list = Gtk.StringList.new(["Fortinet (openfortivpn)", "GlobalProtect (Palo Alto)"])
+        self._vpn_type_row.set_model(vpn_type_list)
+        self._vpn_type_row.connect("notify::selected", self._on_vpn_type_changed)
+        general_group.add(self._vpn_type_row)
+
         self._host_row = Adw.EntryRow(title="Host server VPN")
         self._host_row.set_input_purpose(Gtk.InputPurpose.URL)
         general_group.add(self._host_row)
@@ -96,12 +106,23 @@ class ProfileEditorDialog(Adw.Dialog):
         self._realm_row = Adw.EntryRow(title="Realm (opzionale)")
         auth_group.add(self._realm_row)
 
+        self._vpn_password_row = Adw.PasswordEntryRow(title="Password VPN")
+        auth_group.add(self._vpn_password_row)
+
+        vpn_pwd_info = Adw.ActionRow(
+            subtitle="Se compilata, la password viene usata automaticamente "
+                     "alla connessione. Salvata cifrata nel profilo."
+        )
+        vpn_pwd_info.add_css_class("property")
+        auth_group.add(vpn_pwd_info)
+        self._vpn_pwd_info = vpn_pwd_info
+
         self._auth_saml_check.connect("toggled", self._on_auth_method_changed)
         self._auth_pass_check.connect("toggled", self._on_auth_method_changed)
 
         main_box.append(auth_group)
 
-        # --- SSO Credentials group ---
+        # --- SSO Credentials group (Fortinet only: auto-fill webview) ---
         self._sso_group = Adw.PreferencesGroup(
             title="Credenziali SSO",
             description="Compilazione automatica del form di login dell'Identity Provider",
@@ -123,46 +144,100 @@ class ProfileEditorDialog(Adw.Dialog):
 
         main_box.append(self._sso_group)
 
-        # --- Security group ---
-        security_group = Adw.PreferencesGroup(title="Sicurezza")
+        # --- Security group (Fortinet only) ---
+        self._security_group = Adw.PreferencesGroup(title="Sicurezza")
 
         self._cert_row = Adw.EntryRow(title="Certificato trusted (SHA256)")
         self._cert_row.set_input_purpose(Gtk.InputPurpose.FREE_FORM)
-        security_group.add(self._cert_row)
+        self._security_group.add(self._cert_row)
 
         cert_info = Adw.ActionRow(
             subtitle="L'hash SHA256 del certificato del server. "
                      "Lo trovi nel log alla prima connessione."
         )
         cert_info.add_css_class("property")
-        security_group.add(cert_info)
+        self._security_group.add(cert_info)
 
-        main_box.append(security_group)
+        main_box.append(self._security_group)
 
-        # --- Network group ---
-        network_group = Adw.PreferencesGroup(title="Rete")
+        # --- Network group (Fortinet only) ---
+        self._network_group = Adw.PreferencesGroup(title="Rete")
 
         self._routes_switch = Adw.SwitchRow(title="Imposta rotte", subtitle="Aggiungi le rotte VPN alla tabella di routing")
-        network_group.add(self._routes_switch)
+        self._network_group.add(self._routes_switch)
 
         self._dns_switch = Adw.SwitchRow(title="Imposta DNS", subtitle="Configura i DNS tramite il tunnel VPN")
-        network_group.add(self._dns_switch)
+        self._network_group.add(self._dns_switch)
 
         self._peerdns_switch = Adw.SwitchRow(title="PPP Peer DNS", subtitle="Usa i DNS forniti dal peer PPP")
-        network_group.add(self._peerdns_switch)
+        self._network_group.add(self._peerdns_switch)
 
         self._half_routes_switch = Adw.SwitchRow(
             title="Half internet routes",
             subtitle="Usa 0.0.0.0/1 + 128.0.0.0/1 invece di rotta default"
         )
-        network_group.add(self._half_routes_switch)
+        self._network_group.add(self._half_routes_switch)
 
-        main_box.append(network_group)
+        main_box.append(self._network_group)
+
+        # --- GlobalProtect group ---
+        self._gp_group = Adw.PreferencesGroup(
+            title="GlobalProtect",
+            description="Impostazioni specifiche per Palo Alto GlobalProtect",
+        )
+
+        self._gp_gateway_row = Adw.EntryRow(title="Gateway (opzionale)")
+        self._gp_gateway_row.set_input_purpose(Gtk.InputPurpose.URL)
+        self._gp_group.add(self._gp_gateway_row)
+
+        self._gp_extra_dns_row = Adw.EntryRow(title="Domini DNS extra (separati da spazio)")
+        self._gp_extra_dns_row.set_input_purpose(Gtk.InputPurpose.FREE_FORM)
+        self._gp_group.add(self._gp_extra_dns_row)
+
+        self._gp_vpn_dns_row = Adw.EntryRow(title="IP DNS VPN (opzionale)")
+        self._gp_vpn_dns_row.set_input_purpose(Gtk.InputPurpose.FREE_FORM)
+        self._gp_group.add(self._gp_vpn_dns_row)
+
+        self._gp_hip_switch = Adw.SwitchRow(
+            title="HIP Report",
+            subtitle="Invia Host Identity Profile report al server",
+        )
+        self._gp_group.add(self._gp_hip_switch)
+
+        self._gp_mtu_adj = Gtk.Adjustment(value=0, lower=0, upper=9000, step_increment=1)
+        self._gp_mtu_row = Adw.SpinRow(
+            title="MTU (0 = default)",
+            adjustment=self._gp_mtu_adj,
+            climb_rate=1,
+            digits=0,
+        )
+        self._gp_group.add(self._gp_mtu_row)
+
+        self._gp_no_dtls_switch = Adw.SwitchRow(
+            title="Disabilita DTLS",
+            subtitle="Forza TCP su HTTPS (più stabile, meno veloce)",
+        )
+        self._gp_group.add(self._gp_no_dtls_switch)
+
+        self._gp_fix_openssl_switch = Adw.SwitchRow(
+            title="Fix OpenSSL legacy",
+            subtitle="Usa --fix-openssl per server con SSL datato",
+        )
+        self._gp_group.add(self._gp_fix_openssl_switch)
+
+        gp_dns_info = Adw.ActionRow(
+            subtitle="I domini DNS extra vengono forzati sull'interfaccia VPN "
+                     "tramite systemd-resolved. Un watchdog li mantiene attivi."
+        )
+        gp_dns_info.add_css_class("property")
+        self._gp_group.add(gp_dns_info)
+
+        main_box.append(self._gp_group)
 
         # --- Advanced group ---
         advanced_group = Adw.PreferencesGroup(title="Avanzate")
 
-        self._extra_args_row = Adw.EntryRow(title="Argomenti extra per openfortivpn")
+        self._extra_args_row = Adw.EntryRow(title="Argomenti extra")
         advanced_group.add(self._extra_args_row)
 
         main_box.append(advanced_group)
@@ -188,6 +263,25 @@ class ProfileEditorDialog(Adw.Dialog):
         self._half_routes_switch.set_active(p.half_internet_routes)
         self._extra_args_row.set_text(p.extra_args)
 
+        # VPN type
+        vpn_idx = 1 if p.vpn_type == "globalprotect" else 0
+        self._vpn_type_row.set_selected(vpn_idx)
+
+        # GlobalProtect fields
+        self._gp_gateway_row.set_text(p.gp_gateway)
+        self._gp_extra_dns_row.set_text(p.gp_extra_dns)
+        self._gp_vpn_dns_row.set_text(p.gp_vpn_dns)
+        self._gp_hip_switch.set_active(p.gp_hip)
+        self._gp_mtu_adj.set_value(p.gp_mtu)
+        self._gp_no_dtls_switch.set_active(p.gp_no_dtls)
+        self._gp_fix_openssl_switch.set_active(p.gp_fix_openssl)
+
+        # VPN password (from encrypted field in profile)
+        from . import crypto
+        vpn_pwd = crypto.decrypt(p.encrypted_password)
+        if vpn_pwd:
+            self._vpn_password_row.set_text(vpn_pwd)
+
         # SSO credentials
         self._sso_username_row.set_text(p.sso_username)
         sso_pwd = credential_store.lookup_sso_password(p.uid)
@@ -200,11 +294,36 @@ class ProfileEditorDialog(Adw.Dialog):
             self._auth_pass_check.set_active(True)
 
         self._on_auth_method_changed(None)
+        self._on_vpn_type_changed(None, None)
+
+    def _on_vpn_type_changed(self, row, pspec):
+        is_gp = self._vpn_type_row.get_selected() == 1
+        is_password = self._auth_pass_check.get_active()
+        # Fortinet-only sections
+        self._port_row.set_visible(not is_gp)
+        self._security_group.set_visible(not is_gp)
+        self._network_group.set_visible(not is_gp)
+        self._realm_row.set_visible(not is_gp)
+        # SSO auto-fill only for Fortinet (GP uses system browser)
+        self._sso_group.set_visible(not is_gp and not is_password)
+        # VPN password visible for password auth
+        self._vpn_password_row.set_visible(is_password)
+        self._vpn_pwd_info.set_visible(is_password)
+        # GlobalProtect-only section
+        self._gp_group.set_visible(is_gp)
+        # Username is always visible for GP
+        if is_gp:
+            self._username_row.set_sensitive(True)
 
     def _on_auth_method_changed(self, widget):
         is_password = self._auth_pass_check.get_active()
-        self._username_row.set_sensitive(is_password)
-        self._sso_group.set_sensitive(not is_password)
+        is_gp = self._vpn_type_row.get_selected() == 1
+        self._username_row.set_sensitive(is_password or is_gp)
+        # VPN password field visible only for password auth
+        self._vpn_password_row.set_visible(is_password)
+        self._vpn_pwd_info.set_visible(is_password)
+        # SSO auto-fill only for Fortinet SAML
+        self._sso_group.set_visible(not is_password and not is_gp)
 
     def _on_save(self, button):
         p = self._profile
@@ -222,7 +341,24 @@ class ProfileEditorDialog(Adw.Dialog):
         p.extra_args = self._extra_args_row.get_text().strip()
         p.sso_username = self._sso_username_row.get_text().strip()
 
-        # Save SSO password in keyring
+        # VPN type
+        p.vpn_type = "globalprotect" if self._vpn_type_row.get_selected() == 1 else "fortinet"
+
+        # GlobalProtect fields
+        p.gp_gateway = self._gp_gateway_row.get_text().strip()
+        p.gp_extra_dns = self._gp_extra_dns_row.get_text().strip()
+        p.gp_vpn_dns = self._gp_vpn_dns_row.get_text().strip()
+        p.gp_hip = self._gp_hip_switch.get_active()
+        p.gp_mtu = int(self._gp_mtu_adj.get_value())
+        p.gp_no_dtls = self._gp_no_dtls_switch.get_active()
+        p.gp_fix_openssl = self._gp_fix_openssl_switch.get_active()
+
+        # Save VPN password encrypted in profile
+        from . import crypto
+        vpn_pwd = self._vpn_password_row.get_text()
+        p.encrypted_password = crypto.encrypt(vpn_pwd) if vpn_pwd else ""
+
+        # Save SSO password in keyring (only for Fortinet SAML)
         sso_pwd = self._sso_password_row.get_text()
         if sso_pwd:
             credential_store.store_sso_password(p.uid, p.name, sso_pwd)

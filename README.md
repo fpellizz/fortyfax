@@ -1,6 +1,6 @@
 # Fortyfax
 
-> GUI nativa GTK4/Adwaita per [openfortivpn](https://github.com/adrienverge/openfortivpn) con supporto completo per autenticazione **SAML/SSO** tramite webview integrata.
+> GUI nativa GTK4/Adwaita per [openfortivpn](https://github.com/adrienverge/openfortivpn) e [GlobalProtect-openconnect](https://github.com/yuezk/GlobalProtect-openconnect) con supporto completo per autenticazione **SAML/SSO**.
 
 ![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)
 ![GTK4](https://img.shields.io/badge/GTK-4.0-green)
@@ -12,42 +12,63 @@
 
 ## Panoramica
 
-Fortyfax nasce per risolvere un problema concreto: collegarsi a VPN Fortinet/FortiGate da Linux senza dover usare il client proprietario FortiClient (che su distribuzioni recenti ha problemi di compatibilità con OpenSSL 3.x e RPM senza digest).
+Fortyfax nasce per risolvere un problema concreto: collegarsi a VPN aziendali da Linux senza dover usare client proprietari (FortiClient, GlobalProtect) che su distribuzioni recenti hanno problemi di compatibilità.
 
-L'applicazione wrappa `openfortivpn` fornendo:
+L'applicazione supporta due backend VPN:
 
-- **Login SAML/SSO** tramite webview WebKitGTK integrata con cattura automatica del cookie `SVPNCOOKIE` e **auto-compilazione credenziali** (email/password) sul form dell'Identity Provider
-- **Login con username/password** classico
+- **Fortinet/FortiGate** tramite `openfortivpn`
+- **Palo Alto GlobalProtect** tramite `gpclient` (GlobalProtect-openconnect)
+
+Funzionalità principali:
+
+- **Login SAML/SSO**: webview integrata per Fortinet (cattura SVPNCOOKIE), browser di sistema per GlobalProtect
+- **Auto-compilazione credenziali** (email/password) sul form dell'Identity Provider (Fortinet)
+- **Login con username/password** classico con salvataggio password cifrata nel profilo
 - **Gestione profili** multipli con editor grafico completo
-- **Interfaccia nativa GNOME** che si integra con il desktop (GTK4 + libadwaita)
+- **Interfaccia nativa** che si integra con il desktop (GTK4 + libadwaita, compatibile GNOME e KDE Plasma)
 - **Icona nel system tray** con stato connessione, menu contestuale e hide-on-close
 - **Notifiche desktop** per connessione, disconnessione ed errori (GNOME e KDE)
+- **DNS watchdog** per GlobalProtect: mantiene la configurazione DNS corretta sull'interfaccia VPN
 - **Log in tempo reale** della connessione VPN
 - **Verifica prerequisiti** con messaggi di errore esplicativi e istruzioni di fix
 
 ## Screenshot
 
-*TODO: aggiungere screenshot dell'interfaccia*
+> Per catturare gli screenshot: avvia Fortyfax, usa `Spectacle` (KDE) o `gnome-screenshot` (GNOME) e salva le immagini nella cartella `screenshots/`.
+
+### Icona applicazione
+
+![Fortyfax](icons/fortyfax_128.png)
+
+L'icona nella system tray cambia colore in base allo stato della VPN:
+
+| Stato | Icona | Colore |
+| ----- | ----- | ------ |
+| App avviata, nessuna VPN | ![Idle](icons/tray_idle_32.png) | Bianco |
+| VPN connessa | ![Connesso](icons/tray_connected_32.png) | Verde |
+| VPN disconnessa | ![Disconnesso](icons/tray_disconnected_32.png) | Grigio |
+| Errore | ![Errore](icons/tray_error_32.png) | Giallo |
 
 ## Funzionalita
 
-### Autenticazione
+### Backend VPN supportati
 
-| Metodo | Supporto | Descrizione |
-|--------|----------|-------------|
-| SAML/SSO | Completo | Webview integrata, cattura automatica SVPNCOOKIE, auto-fill credenziali IdP, compatibile con Azure AD, Okta, Google, ecc. |
-| Username/Password | Completo | Dialog sicuro con password mascherata |
+| Backend | Client | Autenticazione | Note |
+| ------- | ------ | -------------- | ---- |
+| **Fortinet/FortiGate** | `openfortivpn` | SAML/SSO (webview integrata), Password | Cattura automatica SVPNCOOKIE, auto-fill credenziali IdP |
+| **Palo Alto GlobalProtect** | `gpclient` | SAML/SSO (browser di sistema), Password | DNS watchdog, HIP report, fix OpenSSL legacy |
 
 ### Gestione Profili
 
 - Creazione, modifica ed eliminazione profili VPN
+- Selezione tipo VPN (Fortinet / GlobalProtect) con campi condizionali
 - Validazione campi in tempo reale
 - Configurazione completa: host, porta, realm, certificato trusted, argomenti extra
 - Salvataggio sicuro in `~/.config/fortyfax/profiles/` (formato JSON)
-- **Import/export profili** in formato JSON (dal menu hamburger)
+- **Import/export profili** in formato JSON (dal menu hamburger o per singolo profilo)
 - Esportazione in formato config nativo openfortivpn
 
-### Rete
+### Rete (Fortinet)
 
 - Gestione rotte VPN (attiva/disattiva)
 - Configurazione DNS tramite tunnel
@@ -55,12 +76,22 @@ L'applicazione wrappa `openfortivpn` fornendo:
 - Half internet routes (`0.0.0.0/1` + `128.0.0.0/1`)
 - Argomenti extra personalizzabili per openfortivpn
 
+### Rete (GlobalProtect)
+
+- **DNS watchdog**: monitora e mantiene la configurazione DNS corretta sull'interfaccia tun
+- **Domini DNS extra**: forza domini di ricerca specifici su `systemd-resolved`
+- **IP DNS VPN**: forza un server DNS specifico sull'interfaccia tunnel
+- **HIP Report**: invia Host Identity Profile report al server
+- **MTU configurabile**: per evitare packet loss su connessioni instabili
+- **Disabilita DTLS**: forza TCP su HTTPS per maggiore stabilità
+- **Fix OpenSSL legacy**: compatibilità con server VPN datati
+
 ### Interfaccia
 
-- Design nativo GNOME con libadwaita
+- Design nativo con libadwaita (compatibile GNOME e KDE Plasma)
 - Stato connessione con feedback visivo (icone, spinner, banner)
 - **Icona nel system tray** (AppIndicator3):
-  - Icona che cambia in base allo stato: verde (connesso), trasparente (disconnesso), rosso (errore)
+  - Scudo colorato in base allo stato: bianco (idle), verde (connesso), grigio (disconnesso), giallo (errore)
   - Menu contestuale: stato, selezione profilo, connetti/disconnetti, mostra/nascondi, esci
   - Chiudere la finestra la nasconde nel tray (l'app resta attiva)
   - Compatibile con KDE Plasma, GNOME (con estensione AppIndicator), XFCE
@@ -72,27 +103,47 @@ L'applicazione wrappa `openfortivpn` fornendo:
 
 ## Requisiti di sistema
 
+**Dipendenze comuni:**
+
 | Dipendenza | Versione minima | Pacchetto Fedora | Note |
-|------------|----------------|------------------|------|
+| ---------- | --------------- | ---------------- | ---- |
 | Python | 3.10+ | `python3` | |
 | GTK 4 | 4.0+ | `gtk4` | |
 | libadwaita | 1.0+ | `libadwaita` | |
 | PyGObject | 3.42+ | `python3-gobject` | Binding Python per GTK |
-| WebKitGTK | 6.0+ | `webkitgtk6.0` | Per autenticazione SAML/SSO |
-| libsecret | 1.0+ | `libsecret` | Storage sicuro credenziali |
-| openfortivpn | 1.17+ | `openfortivpn` | Backend VPN |
+| WebKitGTK | 6.0+ | `webkitgtk6.0` | Per autenticazione SAML/SSO (Fortinet) |
+| libsecret | 1.0+ | `libsecret` | Storage credenziali (GNOME Keyring / KDE Wallet) |
 | PolicyKit | — | `polkit` | Elevazione privilegi per la connessione |
 | AppIndicator3 | — | `libappindicator-gtk3` | Icona nel system tray |
-| pppd | — | `ppp` | Richiesto da openfortivpn |
+
+**Dipendenze Fortinet (openfortivpn):**
+
+| Dipendenza | Pacchetto Fedora | Note |
+| ---------- | ---------------- | ---- |
+| openfortivpn | `openfortivpn` | Backend VPN Fortinet |
+| pppd | `ppp` | Richiesto da openfortivpn |
+
+**Dipendenze GlobalProtect (Palo Alto):**
+
+| Dipendenza | Pacchetto Fedora | Note |
+| ---------- | ---------------- | ---- |
+| gpclient | `globalprotect-openconnect` | Backend VPN GlobalProtect (da COPR) |
+| openconnect | `openconnect` | Usato da gpclient |
+| vpnc-script | `vpnc-script` | Script di rete per openconnect |
 
 ## Installazione
 
 ### Installazione rapida (Fedora)
 
 ```bash
-# 1. Installa le dipendenze
+# 1. Installa le dipendenze comuni + Fortinet
 sudo dnf install -y openfortivpn python3-gobject gtk4 libadwaita \
     webkitgtk6.0 libsecret polkit ppp libappindicator-gtk3
+
+# 1b. (Opzionale) Installa le dipendenze GlobalProtect
+sudo dnf install -y openconnect vpnc-script
+sudo dnf copr enable yuezk/globalprotect-openconnect
+sudo dnf install -y globalprotect-openconnect
 
 # 2. Clona il repository
 git clone https://stazzo@bitbucket.org/decisyon/fortyfax.git
@@ -156,22 +207,40 @@ I profili in `~/.config/fortyfax/` **non** vengono rimossi.
 
 1. Avvia `fortyfax`
 2. Clicca **"+"** per creare un nuovo profilo VPN
-3. Compila i campi:
+3. Seleziona il **Tipo VPN**: Fortinet (openfortivpn) oppure GlobalProtect (Palo Alto)
+4. Compila i campi (cambiano in base al tipo selezionato):
    - **Nome profilo**: un nome descrittivo (es. "VPN Ufficio")
-   - **Host**: hostname o IP del FortiGate (es. `vpn.azienda.com`)
-   - **Porta**: di solito `443`
+   - **Host**: hostname o IP del server VPN (es. `vpn.azienda.com`)
+   - **Porta**: di solito `443` (solo Fortinet)
    - **Metodo di autenticazione**: SAML/SSO oppure Username/Password
-   - **Realm**: se richiesto dal tuo FortiGate (opzionale)
-4. Salva il profilo
+5. Salva il profilo
 
-### Connessione SAML/SSO
+### Connessione Fortinet SAML/SSO
 
-1. Seleziona il profilo con autenticazione SAML
+1. Seleziona il profilo Fortinet con autenticazione SAML
 2. Clicca **"Connetti"**
 3. Si apre una finestra browser integrata con la pagina di login del tuo IdP
 4. Completa l'autenticazione (Azure AD, Okta, Google, ecc.)
 5. Il cookie SVPNCOOKIE viene catturato automaticamente
 6. La connessione VPN parte in automatico
+
+### Connessione GlobalProtect
+
+1. Seleziona il profilo GlobalProtect
+2. Clicca **"Connetti"**
+3. Per SSO: si apre il **browser di sistema** con la pagina di login (gestito da gpclient)
+4. Per Password: inserisci la password nel dialog
+5. La connessione VPN parte. Se configurati, i domini DNS extra vengono applicati automaticamente
+
+**Campi specifici GlobalProtect:**
+
+- **Gateway**: indirizzo del gateway specifico (opzionale, se il portale ne ha molti)
+- **Domini DNS extra**: domini interni da risolvere via VPN (es. `azienda.com internal.net`)
+- **IP DNS VPN**: IP del server DNS interno se l'autodiscovery fallisce
+- **HIP Report**: abilita l'invio di Host Identity Profile (richiesto da alcuni server)
+- **MTU**: abbassa il valore MTU per evitare packet loss (0 = default)
+- **Disabilita DTLS**: forza TCP per connessioni più stabili
+- **Fix OpenSSL legacy**: compatibilità con server VPN datati
 
 ### Credenziali SSO salvate
 
@@ -191,8 +260,10 @@ La password è salvata nel **portachiavi di sistema** (GNOME Keyring / KDE Walle
 
 1. Seleziona il profilo con autenticazione password
 2. Clicca **"Connetti"**
-3. Inserisci la password nel dialog
-4. La connessione VPN parte
+3. Se la password è salvata nel profilo, la connessione parte automaticamente
+4. Altrimenti, inserisci la password nel dialog
+
+Per salvare la password: apri l'editor del profilo (icona matita), compila il campo **"Password VPN"** nel gruppo Autenticazione, e salva. La password viene **cifrata** (PBKDF2 + salt random) e salvata nel file JSON del profilo. La chiave di cifratura e in `~/.config/fortyfax/.secret` (permessi `0600`), generata automaticamente al primo utilizzo.
 
 ### Certificato trusted
 
@@ -206,7 +277,7 @@ Puoi visualizzare il log cliccando l'icona terminale nella barra superiore.
 
 **Esportazione tutti i profili**: Menu hamburger > **Esporta tutti i profili...** salva tutti i profili in un unico file JSON.
 
-Le password SSO **non** vengono incluse nei file esportati (rimangono nel portachiavi di sistema).
+Le **password** (VPN e SSO) **non** vengono incluse nei file esportati per sicurezza.
 
 **Importazione**: Menu hamburger > **Importa profili...** carica profili da un file JSON (sia singolo che multiplo). Ogni profilo importato riceve un nuovo identificativo, quindi non sovrascrive quelli esistenti.
 
@@ -239,25 +310,23 @@ Clicca **"Disconnetti"** per terminare la connessione VPN in modo pulito.
 ```
 fortyfax/
 ├── fortyfax-bin              # Launcher eseguibile
-├── fortyfax-vpn-helper       # Helper per avvio/stop openfortivpn via pkexec
+├── fortyfax-vpn-helper       # Helper per avvio/stop VPN (openfortivpn/gpclient) via pkexec
 ├── install.sh                # Script di installazione di sistema
 ├── uninstall.sh              # Script di rimozione
 ├── README.md
 ├── LICENSE
-├── icons/                    # Icone applicazione e tray
-│   ├── app_icon_dark*.png     # Icona app (sfondo scuro)
-│   ├── app_icon_light*.png    # Icona app (sfondo chiaro)
-│   ├── tray_icon*.png         # Icona tray (connesso/in corso)
-│   ├── tray_icon_gray*.png    # Icona tray (disconnesso)
-│   └── notif_icon*.png        # Icona notifica/connesso
+├── icons/                    # Icone applicazione
+│   ├── fortyfax.svg           # Icona app sorgente (SVG vettoriale)
+│   └── fortyfax_*.png         # Icona app in varie dimensioni (16-512px)
 └── fortyfax/                 # Package Python
     ├── __init__.py            # Metadati (versione, app_id)
     ├── __main__.py            # Entry point per `python -m fortyfax`
     ├── app.py                 # Applicazione Adwaita (lifecycle, menu, shortcuts)
-    ├── auth.py                # Autenticazione SAML/SSO via WebKitGTK
-    ├── check.py               # Verifica prerequisiti di sistema
-    ├── connection.py          # Gestione processo openfortivpn
-    ├── credential_store.py    # Storage credenziali SSO via libsecret (GNOME Keyring)
+    ├── auth.py                # Autenticazione SAML/SSO via WebKitGTK (Fortinet)
+    ├── check.py               # Verifica prerequisiti di sistema (Fortinet + GlobalProtect)
+    ├── connection.py          # Gestione connessione VPN (Fortinet + GlobalProtect + DNS watchdog)
+    ├── credential_store.py    # Storage credenziali SSO via libsecret (GNOME Keyring / KDE Wallet)
+    ├── crypto.py              # Cifratura locale password VPN (PBKDF2 + salt)
     ├── dialogs.py             # Dialog: editor profili, password, log viewer, preferenze
     ├── profile.py             # Modello dati profili + persistenza JSON
     ├── settings.py            # Impostazioni applicazione (tema, persistenza JSON)
@@ -269,29 +338,32 @@ fortyfax/
 ## Architettura
 
 ```
-┌─────────────────────────────────────────────────┐
-│                   Fortyfax                      │
-│              (GTK4 + libadwaita)                │
-├────────────┬────────────┬───────────────────────┤
-│  Window    │  Dialogs   │   Auth (WebKitGTK)    │
-│  - Lista   │  - Editor  │   - SAML webview      │
-│    profili │  - Password│   - Cookie capture     │
-│  - Stato   │  - Log     │   - SVPNCOOKIE         │
-├────────────┴────────────┼───────────────────────┤
-│  Connection Manager     │   Tray Icon            │
-│  - Subprocess via pkexec│   - AppIndicator3      │
-│  - Monitor stdout       │   - Sotto-processo GTK3│
-│  - Cookie/pwd via stdin │   - JSON pipe IPC      │
-├─────────────────────────┴───────────────────────┤
-│              Profile Manager                     │
-│  - CRUD profili JSON                            │
-│  - ~/.config/fortyfax/profiles/                 │
-│  - Validazione + export config                  │
-├─────────────────────────────────────────────────┤
-│           Sistema operativo                      │
-│  fortyfax-vpn-helper ─ openfortivpn ─ pppd      │
-│  pkexec ─ PolicyKit (allow_active=yes)           │
-└─────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────┐
+│                       Fortyfax                           │
+│                  (GTK4 + libadwaita)                     │
+├────────────┬────────────┬────────────────────────────────┤
+│  Window    │  Dialogs   │   Auth                         │
+│  - Lista   │  - Editor  │   - SAML webview (Fortinet)    │
+│    profili │  - Password│   - Browser sistema (GP)       │
+│  - Stato   │  - Log     │   - Cookie capture             │
+├────────────┴────────────┼────────────────────────────────┤
+│  Connection Manager     │   Tray Icon                    │
+│  - Fortinet backend     │   - AppIndicator3              │
+│  - GlobalProtect backend│   - Sotto-processo GTK3        │
+│  - DNS Watchdog (GP)    │   - JSON pipe IPC              │
+│  - Subprocess via pkexec│                                │
+├─────────────────────────┴────────────────────────────────┤
+│                  Profile Manager                         │
+│  - CRUD profili JSON (Fortinet + GlobalProtect)          │
+│  - ~/.config/fortyfax/profiles/                          │
+│  - Import/export + validazione                           │
+├──────────────────────────────────────────────────────────┤
+│                 Sistema operativo                        │
+│  fortyfax-vpn-helper ─ openfortivpn ─ pppd  (Fortinet)  │
+│  fortyfax-vpn-helper ─ gpclient ─ openconnect (GP)      │
+│  pkexec ─ PolicyKit (allow_active=yes)                   │
+│  resolvectl ─ systemd-resolved (DNS watchdog GP)         │
+└──────────────────────────────────────────────────────────┘
 ```
 
 ### Flusso SAML/SSO
@@ -326,11 +398,12 @@ I profili sono salvati in `~/.config/fortyfax/profiles/<uuid>.json`:
   "name": "VPN Ufficio",
   "host": "vpn.azienda.com",
   "port": 443,
-  "username": "",
-  "auth_method": "saml",
+  "username": "utente",
+  "auth_method": "password",
+  "encrypted_password": "base64...",
   "trusted_cert": "a1b2c3d4e5f6...",
   "realm": "",
-  "use_resolvconf": true,
+  "vpn_type": "fortinet",
   "set_dns": true,
   "set_routes": true,
   "pppd_use_peerdns": true,
@@ -339,6 +412,19 @@ I profili sono salvati in `~/.config/fortyfax/profiles/<uuid>.json`:
   "uid": "550e8400-e29b-41d4-a716-446655440000"
 }
 ```
+
+Per i profili GlobalProtect si aggiungono i campi `gp_gateway`, `gp_extra_dns`, `gp_vpn_dns`, `gp_hip`, `gp_mtu`, `gp_no_dtls`, `gp_fix_openssl`.
+
+### Cifratura password
+
+Le password VPN sono cifrate con:
+
+- **Chiave**: 32 byte random in `~/.config/fortyfax/.secret` (permessi `0600`)
+- **Algoritmo**: PBKDF2-SHA256 (100.000 iterazioni) + XOR
+- **Salt**: 16 byte random per ogni cifratura (lo stesso testo produce token diversi)
+- **Formato**: base64(salt + dati_cifrati) nel campo `encrypted_password` del JSON
+
+La chiave non lascia mai la macchina. Se il file `.secret` viene perso, le password devono essere reinserite. Le password **non** vengono incluse nell'export dei profili.
 
 ### Impostazioni applicazione
 
@@ -366,8 +452,10 @@ Le impostazioni sono accessibili dal menu hamburger > **Preferenze** (o `Ctrl+,`
 Lo script `install.sh` configura una policy PolicyKit che permette di avviare e terminare openfortivpn **senza richiesta di password** per l'utente attivo sulla sessione locale (`allow_active=yes`).
 
 Questo avviene tramite lo script helper `fortyfax-vpn-helper` che:
-- Accetta solo i comandi `start`, `stop` e `kill`
-- Verifica che il PID da terminare sia effettivamente un processo `openfortivpn`
+
+- Accetta solo i comandi `start`, `stop`, `kill` e `dns`
+- Supporta sia `openfortivpn` che `gpclient` come backend
+- Verifica che il PID da terminare sia effettivamente un processo VPN
 
 La policy viene installata in `/usr/share/polkit-1/actions/com.github.fortyfax.policy`.
 
@@ -435,6 +523,42 @@ FortiClient per Linux (RPM) e compilato per EL7 e non funziona su Fedora recenti
 
 Fortyfax risolve entrambi i problemi usando `openfortivpn` come backend.
 
+### GlobalProtect: gpclient non trovato
+
+**Problema**: Il checker mostra `gpclient` come mancante.
+
+**Soluzione**: Installa GlobalProtect-openconnect dal COPR:
+
+```bash
+sudo dnf copr enable yuezk/globalprotect-openconnect
+sudo dnf install globalprotect-openconnect
+```
+
+### GlobalProtect: DNS non funziona / siti interni irraggiungibili
+
+**Problema**: Dopo la connessione GlobalProtect, i siti interni non sono raggiungibili.
+
+**Soluzione**:
+
+1. Nel profilo, aggiungi i domini interni nel campo **"Domini DNS extra"** (es. `azienda.com internal.net`)
+2. Se serve, specifica l'IP del DNS interno nel campo **"IP DNS VPN"**
+3. Il DNS watchdog di Fortyfax mantiene la configurazione attiva per tutta la durata della connessione
+
+### GlobalProtect: errore SSL / handshake failed
+
+**Problema**: La connessione fallisce con errori SSL.
+
+**Soluzione**: Abilita **"Fix OpenSSL legacy"** nel profilo GlobalProtect.
+
+### GlobalProtect: connessione instabile / packet loss
+
+**Problema**: La connessione cade frequentemente o è molto lenta.
+
+**Soluzione**:
+
+- Abilita **"Disabilita DTLS"** per forzare TCP
+- Abbassa l'**MTU** a `1200` o `1262`
+
 ## Contribuire
 
 1. Fai un fork del repository
@@ -449,9 +573,12 @@ Fortyfax risolve entrambi i problemi usando `openfortivpn` come backend.
 git clone https://stazzo@bitbucket.org/decisyon/fortyfax.git
 cd fortyfax
 
-# Installa dipendenze
+# Installa dipendenze (Fortinet + GlobalProtect)
 sudo dnf install -y openfortivpn python3-gobject gtk4 libadwaita \
-    webkitgtk6.0 libsecret polkit ppp libappindicator-gtk3
+    webkitgtk6.0 libsecret polkit ppp libappindicator-gtk3 \
+    openconnect vpnc-script
+sudo dnf copr enable yuezk/globalprotect-openconnect
+sudo dnf install -y globalprotect-openconnect
 
 # Esegui in modalita sviluppo
 python3 ./fortyfax-bin
@@ -463,11 +590,12 @@ python3 -m fortyfax.check
 ## Roadmap
 
 - [x] Icona nel system tray con stato connessione
-- [ ] Auto-connect all'avvio del sistema
 - [x] Import/export profili
-- [ ] Supporto multi-connessione simultanea
 - [x] Notifiche desktop (connect/disconnect)
 - [x] Supporto tema Light/Dark con preferenze
+- [x] Supporto GlobalProtect (Palo Alto) con DNS watchdog
+- [ ] Auto-connect all'avvio del sistema
+- [ ] Supporto multi-connessione simultanea
 - [ ] Packaging RPM/Flatpak
 
 ## Licenza

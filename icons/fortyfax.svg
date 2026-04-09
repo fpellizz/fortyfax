@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="shield" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FF9800"/>
+      <stop offset="100%" stop-color="#E65100"/>
+    </linearGradient>
+    <linearGradient id="edge" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FFB74D"/>
+      <stop offset="100%" stop-color="#BF360C"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Shield -->
+  <path d="M64 6 L114 28 L114 64 C114 94 92 116 64 124 C36 116 14 94 14 64 L14 28 Z"
+        fill="url(#shield)"/>
+  <path d="M64 6 L114 28 L114 64 C114 94 92 116 64 124 C36 116 14 94 14 64 L14 28 Z"
+        fill="none" stroke="url(#edge)" stroke-width="2.5"/>
+
+  <!-- Fox - orange fur base (full head shape with pointy ears) -->
+  <path d="M34 62 L40 26 L56 50 L64 46 L72 50 L88 26 L94 62
+           Q96 74 88 82 L74 92 Q64 98 54 92 L40 82 Q32 74 34 62 Z"
+        fill="#FF8C00"/>
+
+  <!-- Darker fur on ears -->
+  <path d="M37 58 L42 30 L54 50 Z" fill="#E65100" opacity="0.5"/>
+  <path d="M74 50 L86 30 L91 58 Z" fill="#E65100" opacity="0.5"/>
+
+  <!-- White face area (cheeks + muzzle) -->
+  <path d="M46 62 Q48 56 56 58 L64 56 L72 58 Q80 56 82 62
+           Q84 72 78 80 L70 88 Q64 92 58 88 L50 80 Q44 72 46 62 Z"
+        fill="#FFFFFF"/>
+
+  <!-- White chest patch -->
+  <path d="M54 90 Q64 96 74 90 Q72 94 64 96 Q56 94 54 90 Z"
+        fill="#FFFFFF" opacity="0.6"/>
+
+  <!-- Eyes - sharp, angled, fox-like -->
+  <path d="M49 64 Q53 59 57 64 Q53 68 49 64 Z" fill="#1a1a1a"/>
+  <path d="M71 64 Q75 59 79 64 Q75 68 71 64 Z" fill="#1a1a1a"/>
+  <!-- Eye shine -->
+  <circle cx="54.5" cy="62.5" r="1.5" fill="#fff"/>
+  <circle cx="76.5" cy="62.5" r="1.5" fill="#fff"/>
+
+  <!-- Nose - black inverted triangle -->
+  <path d="M60.5 76 L64 80 L67.5 76 Z" fill="#1a1a1a"/>
+
+  <!-- Mouth line -->
+  <path d="M64 80 L64 83" stroke="#1a1a1a" stroke-width="1.2" stroke-linecap="round"/>
+  <path d="M58 84 Q64 88 70 84" fill="none" stroke="#BF360C" stroke-width="1.2" stroke-linecap="round"/>
+
+  <!-- Lock on shield bottom -->
+  <rect x="57" y="104" width="14" height="10" rx="2.5" fill="rgba(255,255,255,0.75)"/>
+  <path d="M60.5 104 L60.5 99 C60.5 94.5 67.5 94.5 67.5 99 L67.5 104"
+        fill="none" stroke="rgba(255,255,255,0.75)" stroke-width="2.5" stroke-linecap="round"/>
+  <circle cx="64" cy="109" r="1.5" fill="#E65100"/>
+</svg>

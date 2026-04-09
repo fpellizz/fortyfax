@@ -1,9 +1,11 @@
 #!/bin/bash
 # Helper script for fortyfax - runs as root via pkexec.
 # Usage:
-#   fortyfax-vpn-helper start [openfortivpn args...]
+#   fortyfax-vpn-helper start openfortivpn [args...]
+#   fortyfax-vpn-helper start gpclient [args...]
 #   fortyfax-vpn-helper stop <PID>
 #   fortyfax-vpn-helper kill <PID>
+#   fortyfax-vpn-helper dns <interface> <args...>
 set -euo pipefail
 
 ACTION="${1:-}"
@@ -11,7 +13,20 @@ shift || true
 
 case "$ACTION" in
     start)
-        exec openfortivpn "$@"
+        BACKEND="${1:-}"
+        shift || true
+        case "$BACKEND" in
+            openfortivpn)
+                exec openfortivpn "$@"
+                ;;
+            gpclient)
+                exec gpclient "$@"
+                ;;
+            *)
+                echo "Usage: fortyfax-vpn-helper start {openfortivpn|gpclient} [args...]" >&2
+                exit 1
+                ;;
+        esac
         ;;
     stop)
         PID="${1:-}"
@@ -19,11 +34,17 @@ case "$ACTION" in
             echo "Usage: fortyfax-vpn-helper stop <PID>" >&2
             exit 1
         fi
-        # Verify it's actually an openfortivpn process
-        if [[ -f "/proc/$PID/comm" ]] && [[ "$(cat /proc/$PID/comm)" == "openfortivpn" ]]; then
-            kill -SIGTERM "$PID"
+        # Verify it's a VPN process (openfortivpn or gpclient)
+        if [[ -f "/proc/$PID/comm" ]]; then
+            COMM="$(cat "/proc/$PID/comm")"
+            if [[ "$COMM" == "openfortivpn" || "$COMM" == "gpclient" || "$COMM" == "openconnect" ]]; then
+                kill -SIGTERM "$PID"
+            else
+                echo "PID $PID is not a VPN process (comm=$COMM)" >&2
+                exit 1
+            fi
         else
-            echo "PID $PID is not an openfortivpn process" >&2
+            echo "PID $PID does not exist" >&2
             exit 1
         fi
         ;;
@@ -33,15 +54,25 @@ case "$ACTION" in
             echo "Usage: fortyfax-vpn-helper kill <PID>" >&2
             exit 1
         fi
-        if [[ -f "/proc/$PID/comm" ]] && [[ "$(cat /proc/$PID/comm)" == "openfortivpn" ]]; then
-            kill -9 "$PID"
+        if [[ -f "/proc/$PID/comm" ]]; then
+            COMM="$(cat "/proc/$PID/comm")"
+            if [[ "$COMM" == "openfortivpn" || "$COMM" == "gpclient" || "$COMM" == "openconnect" ]]; then
+                kill -9 "$PID"
+            else
+                echo "PID $PID is not a VPN process (comm=$COMM)" >&2
+                exit 1
+            fi
         else
-            echo "PID $PID is not an openfortivpn process" >&2
+            echo "PID $PID does not exist" >&2
             exit 1
         fi
         ;;
+    dns)
+        # DNS fix helper: runs resolvectl/ip commands as root
+        exec "$@"
+        ;;
     *)
-        echo "Usage: fortyfax-vpn-helper {start|stop|kill} [args...]" >&2
+        echo "Usage: fortyfax-vpn-helper {start|stop|kill|dns} [args...]" >&2
         exit 1
         ;;
 esac

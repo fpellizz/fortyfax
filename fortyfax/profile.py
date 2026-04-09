@@ -26,10 +26,22 @@ class VPNProfile:
     half_internet_routes: bool = False
     sso_username: str = ""
     extra_args: str = ""
+    vpn_type: str = "fortinet"  # "fortinet", "globalprotect"
+    # GlobalProtect-specific fields
+    gp_gateway: str = ""
+    gp_extra_dns: str = ""  # space-separated domains
+    gp_vpn_dns: str = ""  # forced DNS server IP
+    gp_hip: bool = False
+    gp_mtu: int = 0  # 0 = default (no override)
+    gp_no_dtls: bool = False
+    gp_fix_openssl: bool = False
+    encrypted_password: str = ""  # encrypted VPN password (base64, local key)
     uid: str = field(default_factory=lambda: str(uuid.uuid4()))
 
     @property
     def display_host(self) -> str:
+        if self.vpn_type == "globalprotect":
+            return self.host
         return f"{self.host}:{self.port}" if self.port != 443 else self.host
 
     def to_openfortivpn_args(self, cookie: str = "") -> list[str]:
@@ -53,6 +65,27 @@ class VPNProfile:
             args += self.extra_args.split()
         return args
 
+    def to_gpclient_args(self) -> list[str]:
+        """Build gpclient CLI arguments from this profile."""
+        # --fix-openssl MUST come before the 'connect' subcommand
+        args = []
+        if self.gp_fix_openssl:
+            args.append("--fix-openssl")
+        args += ["connect", self.host]
+        if self.gp_gateway:
+            args += ["--gateway", self.gp_gateway]
+        if self.username:
+            args += ["--user", self.username]
+        if self.gp_hip:
+            args.append("--hip")
+        if self.gp_mtu and self.gp_mtu > 0:
+            args += ["--mtu", str(self.gp_mtu)]
+        if self.gp_no_dtls:
+            args.append("--no-dtls")
+        if self.extra_args:
+            args += self.extra_args.split()
+        return args
+
     def validate(self) -> list[str]:
         """Return list of validation errors, empty if valid."""
         errors = []
@@ -60,10 +93,14 @@ class VPNProfile:
             errors.append("Il nome del profilo è obbligatorio")
         if not self.host.strip():
             errors.append("L'host del server VPN è obbligatorio")
-        if not (1 <= self.port <= 65535):
-            errors.append("La porta deve essere tra 1 e 65535")
-        if self.auth_method == "password" and not self.username.strip():
-            errors.append("Lo username è obbligatorio per l'autenticazione con password")
+        if self.vpn_type == "fortinet":
+            if not (1 <= self.port <= 65535):
+                errors.append("La porta deve essere tra 1 e 65535")
+            if self.auth_method == "password" and not self.username.strip():
+                errors.append("Lo username è obbligatorio per l'autenticazione con password")
+        elif self.vpn_type == "globalprotect":
+            if self.gp_mtu and not (0 <= self.gp_mtu <= 9000):
+                errors.append("L'MTU deve essere tra 0 e 9000")
         return errors
 
 
@@ -123,6 +160,7 @@ class ProfileManager:
         for p in profiles:
             d = asdict(p)
             del d["uid"]  # don't export UIDs — new ones on import
+            d.pop("encrypted_password", None)  # don't export passwords
             data["profiles"].append(d)
         path.write_text(json.dumps(data, indent=2, ensure_ascii=False))
         return len(profiles)
