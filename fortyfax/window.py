@@ -407,12 +407,13 @@ class MainWindow(Adw.ApplicationWindow):
         return False  # remove idle callback
 
     def _start_password_auth(self, profile: VPNProfile):
-        # Try saved password from keyring first
-        from .credential_store import lookup_vpn_password
-        saved_pwd = lookup_vpn_password(profile.uid)
-        if saved_pwd:
-            self._connection.connect(profile, password=saved_pwd)
-            return
+        # Try saved password from encrypted profile field
+        if profile.encrypted_password:
+            from . import crypto
+            saved_pwd = crypto.decrypt(profile.encrypted_password)
+            if saved_pwd:
+                self._connection.connect(profile, password=saved_pwd)
+                return
         # No saved password, ask the user
         dialog = PasswordDialog(profile_name=profile.name)
         dialog.connect("response", self._on_password_response, profile)

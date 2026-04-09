@@ -106,16 +106,13 @@ class ProfileEditorDialog(Adw.Dialog):
         self._realm_row = Adw.EntryRow(title="Realm (opzionale)")
         auth_group.add(self._realm_row)
 
-        self._vpn_password_row = Adw.PasswordEntryRow(title="Password VPN (salvata nel portachiavi)")
+        self._vpn_password_row = Adw.PasswordEntryRow(title="Password VPN")
         auth_group.add(self._vpn_password_row)
 
-        if credential_store.is_keyring_available():
-            pwd_subtitle = ("Se compilata, la password viene usata automaticamente "
-                            "alla connessione. Salvata nel portachiavi di sistema, non su disco.")
-        else:
-            pwd_subtitle = ("Portachiavi non disponibile (GNOME Keyring / KDE Wallet). "
-                            "La password non verrà salvata.")
-        vpn_pwd_info = Adw.ActionRow(subtitle=pwd_subtitle)
+        vpn_pwd_info = Adw.ActionRow(
+            subtitle="Se compilata, la password viene usata automaticamente "
+                     "alla connessione. Salvata cifrata nel profilo."
+        )
         vpn_pwd_info.add_css_class("property")
         auth_group.add(vpn_pwd_info)
         self._vpn_pwd_info = vpn_pwd_info
@@ -279,8 +276,9 @@ class ProfileEditorDialog(Adw.Dialog):
         self._gp_no_dtls_switch.set_active(p.gp_no_dtls)
         self._gp_fix_openssl_switch.set_active(p.gp_fix_openssl)
 
-        # VPN password (from keyring)
-        vpn_pwd = credential_store.lookup_vpn_password(p.uid)
+        # VPN password (from encrypted field in profile)
+        from . import crypto
+        vpn_pwd = crypto.decrypt(p.encrypted_password)
         if vpn_pwd:
             self._vpn_password_row.set_text(vpn_pwd)
 
@@ -355,12 +353,10 @@ class ProfileEditorDialog(Adw.Dialog):
         p.gp_no_dtls = self._gp_no_dtls_switch.get_active()
         p.gp_fix_openssl = self._gp_fix_openssl_switch.get_active()
 
-        # Save VPN password in keyring
+        # Save VPN password encrypted in profile
+        from . import crypto
         vpn_pwd = self._vpn_password_row.get_text()
-        if vpn_pwd:
-            credential_store.store_vpn_password(p.uid, p.name, vpn_pwd)
-        else:
-            credential_store.clear_vpn_password(p.uid)
+        p.encrypted_password = crypto.encrypt(vpn_pwd) if vpn_pwd else ""
 
         # Save SSO password in keyring (only for Fortinet SAML)
         sso_pwd = self._sso_password_row.get_text()

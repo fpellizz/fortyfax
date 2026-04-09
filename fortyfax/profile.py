@@ -35,6 +35,7 @@ class VPNProfile:
     gp_mtu: int = 0  # 0 = default (no override)
     gp_no_dtls: bool = False
     gp_fix_openssl: bool = False
+    encrypted_password: str = ""  # encrypted VPN password (base64, local key)
     uid: str = field(default_factory=lambda: str(uuid.uuid4()))
 
     @property
@@ -159,6 +160,7 @@ class ProfileManager:
         for p in profiles:
             d = asdict(p)
             del d["uid"]  # don't export UIDs — new ones on import
+            d.pop("encrypted_password", None)  # don't export passwords
             data["profiles"].append(d)
         path.write_text(json.dumps(data, indent=2, ensure_ascii=False))
         return len(profiles)
