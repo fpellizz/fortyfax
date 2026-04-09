@@ -105,35 +105,35 @@ L'icona nella system tray cambia colore in base allo stato della VPN:
 
 **Dipendenze comuni:**
 
-| Dipendenza | Versione minima | Pacchetto Fedora | Note |
-| ---------- | --------------- | ---------------- | ---- |
-| Python | 3.10+ | `python3` | |
-| GTK 4 | 4.0+ | `gtk4` | |
-| libadwaita | 1.0+ | `libadwaita` | |
-| PyGObject | 3.42+ | `python3-gobject` | Binding Python per GTK |
-| WebKitGTK | 6.0+ | `webkitgtk6.0` | Per autenticazione SAML/SSO (Fortinet) |
-| libsecret | 1.0+ | `libsecret` | Opzionale (compatibilità futura) |
-| PolicyKit | — | `polkit` | Elevazione privilegi per la connessione |
-| AppIndicator3 | — | `libappindicator-gtk3` | Icona nel system tray |
+| Dipendenza | Versione minima | Fedora | Debian/Ubuntu |
+| ---------- | --------------- | ------ | ------------- |
+| Python | 3.10+ | `python3` | `python3` |
+| GTK 4 | 4.0+ | `gtk4` | `gir1.2-gtk-4.0` |
+| libadwaita | 1.0+ | `libadwaita` | `gir1.2-adw-1` |
+| PyGObject | 3.42+ | `python3-gobject` | `python3-gi` |
+| WebKitGTK | 6.0+ | `webkitgtk6.0` | `gir1.2-webkit-6.0` |
+| libsecret | 1.0+ | `libsecret` | `gir1.2-secret-1` |
+| PolicyKit | — | `polkit` | `policykit-1` |
+| AppIndicator3 | — | `libappindicator-gtk3` | `gir1.2-appindicator3-0.1` |
 
 **Dipendenze Fortinet (openfortivpn):**
 
-| Dipendenza | Pacchetto Fedora | Note |
-| ---------- | ---------------- | ---- |
-| openfortivpn | `openfortivpn` | Backend VPN Fortinet |
-| pppd | `ppp` | Richiesto da openfortivpn |
+| Dipendenza | Fedora | Debian/Ubuntu |
+| ---------- | ------ | ------------- |
+| openfortivpn | `openfortivpn` | `openfortivpn` |
+| pppd | `ppp` | `ppp` |
 
 **Dipendenze GlobalProtect (Palo Alto):**
 
-| Dipendenza | Pacchetto Fedora | Note |
-| ---------- | ---------------- | ---- |
-| gpclient | `globalprotect-openconnect` | Backend VPN GlobalProtect (da COPR) |
-| openconnect | `openconnect` | Usato da gpclient |
-| vpnc-script | `vpnc-script` | Script di rete per openconnect |
+| Dipendenza | Fedora | Debian/Ubuntu |
+| ---------- | ------ | ------------- |
+| gpclient | `globalprotect-openconnect` (COPR) | `globalprotect-openconnect` (PPA) |
+| openconnect | `openconnect` | `openconnect` |
+| vpnc-script | `vpnc-script` | `vpnc` |
 
 ## Installazione
 
-### Installazione rapida (Fedora)
+### Installazione rapida (Fedora / RHEL)
 
 ```bash
 # 1. Installa le dipendenze comuni + Fortinet
@@ -144,6 +144,29 @@ sudo dnf install -y openfortivpn python3-gobject gtk4 libadwaita \
 sudo dnf install -y openconnect vpnc-script
 sudo dnf copr enable yuezk/globalprotect-openconnect
 sudo dnf install -y globalprotect-openconnect
+
+# 2. Clona il repository
+git clone https://stazzo@bitbucket.org/decisyon/fortyfax.git
+cd fortyfax
+
+# 3. Installa (copia i file, crea .desktop e policy PolicyKit)
+sudo ./install.sh
+
+# 4. Avvia
+fortyfax
+```
+
+### Installazione rapida (Debian / Ubuntu)
+
+```bash
+# 1. Installa le dipendenze comuni + Fortinet
+sudo apt install -y openfortivpn python3-gi gir1.2-gtk-4.0 gir1.2-adw-1 \
+    gir1.2-webkit-6.0 gir1.2-secret-1 policykit-1 ppp gir1.2-appindicator3-0.1
+
+# 1b. (Opzionale) Installa le dipendenze GlobalProtect
+sudo apt install -y openconnect vpnc
+sudo add-apt-repository ppa:yuezk/globalprotect-openconnect
+sudo apt install -y globalprotect-openconnect
 
 # 2. Clona il repository
 git clone https://stazzo@bitbucket.org/decisyon/fortyfax.git
@@ -320,6 +343,7 @@ fortyfax/
     ├── check.py               # Verifica prerequisiti di sistema (Fortinet + GlobalProtect)
     ├── connection.py          # Gestione connessione VPN (Fortinet + GlobalProtect + DNS watchdog)
     ├── credential_store.py    # Storage credenziali via libsecret (legacy, compatibilità)
+    ├── distro.py              # Detection distro Linux e mappatura nomi pacchetti
     ├── crypto.py              # Cifratura locale password VPN (PBKDF2 + salt)
     ├── dialogs.py             # Dialog: editor profili, password, log viewer, preferenze
     ├── profile.py             # Modello dati profili + persistenza JSON
@@ -575,17 +599,20 @@ sudo dnf install globalprotect-openconnect
 git clone https://stazzo@bitbucket.org/decisyon/fortyfax.git
 cd fortyfax
 
-# Installa dipendenze (Fortinet + GlobalProtect)
+# Installa dipendenze — Fedora:
 sudo dnf install -y openfortivpn python3-gobject gtk4 libadwaita \
     webkitgtk6.0 libsecret polkit ppp libappindicator-gtk3 \
     openconnect vpnc-script
-sudo dnf copr enable yuezk/globalprotect-openconnect
-sudo dnf install -y globalprotect-openconnect
+
+# Installa dipendenze — Debian/Ubuntu:
+sudo apt install -y openfortivpn python3-gi gir1.2-gtk-4.0 gir1.2-adw-1 \
+    gir1.2-webkit-6.0 gir1.2-secret-1 policykit-1 ppp \
+    gir1.2-appindicator3-0.1 openconnect vpnc
 
 # Esegui in modalita sviluppo
 python3 ./fortyfax-bin
 
-# Verifica prerequisiti
+# Verifica prerequisiti (rileva automaticamente la distro)
 python3 -m fortyfax.check
 ```
 
