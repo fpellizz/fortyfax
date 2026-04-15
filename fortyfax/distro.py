@@ -125,7 +125,7 @@ _PACKAGE_MAP = {
     },
     "polkit": {
         "redhat": "polkit",
-        "debian": "policykit-1",
+        "debian": "polkitd",
     },
     "libappindicator-gtk3": {
         "redhat": "libappindicator-gtk3",
