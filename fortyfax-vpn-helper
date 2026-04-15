@@ -71,8 +71,19 @@ case "$ACTION" in
         # DNS fix helper: runs resolvectl/ip commands as root
         exec "$@"
         ;;
+    cleanup-gp)
+        # Cleanup stale GlobalProtect state in a single pkexec call.
+        # Runs: gpclient disconnect + pkill gpclient + pkill openconnect
+        # Exit 0 always (cleanup is best-effort).
+        gpclient disconnect 2>/dev/null || true
+        pkill -f gpclient 2>/dev/null || true
+        pkill -f openconnect 2>/dev/null || true
+        # Also cleanup temp wrapper files
+        rm -f /tmp/fortyfax_browser_wrapper.sh /tmp/fortyfax_vpnc_wrapper.sh 2>/dev/null || true
+        exit 0
+        ;;
     *)
-        echo "Usage: fortyfax-vpn-helper {start|stop|kill|dns} [args...]" >&2
+        echo "Usage: fortyfax-vpn-helper {start|stop|kill|dns|cleanup-gp} [args...]" >&2
         exit 1
         ;;
 esac
