@@ -12,8 +12,20 @@ from .profile import VPNProfile
 
 log = logging.getLogger(__name__)
 
-# Resolve helper path: installed symlink or local dev copy
-_HELPER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "fortyfax-vpn-helper")
+def _resolve_helper() -> str:
+    """Resolve the helper script path.
+
+    Prefer the system-installed helper because the PolicyKit policy is
+    registered for those paths — using them avoids password prompts for
+    the active user. Fall back to the dev copy (pwd prompt every time).
+    """
+    for path in ("/usr/bin/fortyfax-vpn-helper", "/usr/local/bin/fortyfax-vpn-helper"):
+        if os.path.isfile(path):
+            return path
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "fortyfax-vpn-helper")
+
+
+_HELPER = _resolve_helper()
 
 
 class ConnectionState(Enum):
@@ -167,27 +179,18 @@ class VPNConnection:
     def _kill_stale_gpclient():
         """Kill any leftover gpclient/openconnect processes from previous runs.
 
-        These processes run as root (via pkexec), so we need elevated
-        privileges to kill them. First try 'gpclient disconnect', then
-        pkill via pkexec as fallback.
+        Delegates to the helper script's 'cleanup-gp' action which does
+        disconnect + pkill gpclient + pkill openconnect in a single
+        privileged call — one pkexec invocation, one password prompt
+        (or none at all if the PolicyKit policy allows the active user).
         """
-        # Try graceful disconnect first
         try:
             subprocess.run(
-                ["pkexec", _HELPER, "start", "gpclient", "disconnect"],
-                capture_output=True, timeout=5,
+                ["pkexec", _HELPER, "cleanup-gp"],
+                capture_output=True, timeout=10,
             )
         except Exception:
             pass
-        # Force kill any remaining processes (they run as root)
-        for proc_name in ["gpclient", "openconnect"]:
-            try:
-                subprocess.run(
-                    ["pkexec", "pkill", "-f", proc_name],
-                    capture_output=True, timeout=5,
-                )
-            except Exception:
-                pass
 
     def _connect_globalprotect(self, profile: VPNProfile, password: str = "") -> bool:
         """Start GlobalProtect (gpclient) connection."""
@@ -566,32 +569,23 @@ class VPNConnection:
             self._stop_dns_watchdog()
 
             if self._vpn_type == "globalprotect":
-                # gpclient needs its own disconnect command to clean up properly
-                try:
-                    subprocess.run(
-                        ["pkexec", _HELPER, "start", "gpclient", "disconnect"],
-                        timeout=10, capture_output=True,
-                    )
-                except Exception:
-                    pass
-
-            try:
-                self._process.terminate()
-            except PermissionError:
-                try:
-                    subprocess.run(
-                        ["pkexec", _HELPER, "stop", str(self._process.pid)],
-                        timeout=5,
-                        capture_output=True,
-                    )
-                except Exception:
-                    pass
-            except ProcessLookupError:
-                pass
-
-            # Clean up any leftover GP processes
-            if self._vpn_type == "globalprotect":
+                # Single pkexec call: disconnect + pkill gpclient + pkill openconnect
                 self._kill_stale_gpclient()
+            else:
+                # Fortinet: terminate owned process, fallback to helper stop if root-owned
+                try:
+                    self._process.terminate()
+                except PermissionError:
+                    try:
+                        subprocess.run(
+                            ["pkexec", _HELPER, "stop", str(self._process.pid)],
+                            timeout=5,
+                            capture_output=True,
+                        )
+                    except Exception:
+                        pass
+                except ProcessLookupError:
+                    pass
 
     def force_disconnect(self):
         """Force kill the connection."""

@@ -185,7 +185,17 @@ fortyfax
 git clone https://stazzo@bitbucket.org/decisyon/fortyfax.git
 cd fortyfax
 python3 ./fortyfax-bin
+
+# (Una tantum) installa la policy PolicyKit per evitare prompt password ripetuti:
+sudo ./dev-setup-policy.sh
 ```
+
+**Nota importante sulle password**: per connetterti alla VPN, Fortyfax deve eseguire `openfortivpn` o `gpclient` come root (via `pkexec`). Per NON dover digitare la password ad ogni connessione/disconnessione, devi:
+
+- **Installare il pacchetto .rpm/.deb** (preferito): la policy PolicyKit viene installata automaticamente, nessuna password richiesta per l'utente attivo
+- **Oppure eseguire `sudo ./dev-setup-policy.sh`** una volta sola: installa la policy che punta al path di sviluppo corrente
+
+Senza una delle due cose, ogni connessione/disconnessione ti chiedera' la password di sistema.
 
 ### Installazione da pacchetto (RPM / DEB)
 
@@ -367,6 +377,7 @@ fortyfax/
 ├── build-pkg.sh              # Script per generare pacchetti RPM e DEB
 ├── install.sh                # Script di installazione di sistema (alternativa ai pacchetti)
 ├── uninstall.sh              # Script di rimozione
+├── dev-setup-policy.sh       # Installa PolicyKit policy per il dev path (evita prompt password)
 ├── README.md
 ├── LICENSE
 ├── icons/                    # Icone applicazione
