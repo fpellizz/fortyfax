@@ -200,8 +200,9 @@ class VPNConnection:
 
             self._log_lines.clear()
 
-            # Kill stale gpclient processes to avoid "Another instance already running"
-            self._kill_stale_gpclient()
+            # Note: the helper 'start gpclient' action cleans up stale
+            # processes inline before exec-ing gpclient, so we don't need
+            # a separate pkexec call here.
 
             self._vpn_type = "globalprotect"
             self._set_state(ConnectionState.CONNECTING, f"Connessione a {profile.display_host}...")
