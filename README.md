@@ -113,7 +113,7 @@ L'icona nella system tray cambia colore in base allo stato della VPN:
 | PyGObject | 3.42+ | `python3-gobject` | `python3-gi` |
 | WebKitGTK | 6.0+ | `webkitgtk6.0` | `gir1.2-webkit-6.0` |
 | libsecret | 1.0+ | `libsecret` | `gir1.2-secret-1` |
-| PolicyKit | — | `polkit` | `policykit-1` |
+| PolicyKit | — | `polkit` | `polkitd` (Ubuntu 24.04+) / `policykit-1` (vecchie) |
 | AppIndicator3 | — | `libappindicator-gtk3` | `gir1.2-appindicator3-0.1` |
 
 **Dipendenze Fortinet (openfortivpn):**
@@ -161,7 +161,7 @@ fortyfax
 ```bash
 # 1. Installa le dipendenze comuni + Fortinet
 sudo apt install -y openfortivpn python3-gi gir1.2-gtk-4.0 gir1.2-adw-1 \
-    gir1.2-webkit-6.0 gir1.2-secret-1 policykit-1 ppp gir1.2-appindicator3-0.1
+    gir1.2-webkit-6.0 gir1.2-secret-1 polkitd ppp gir1.2-appindicator3-0.1
 
 # 1b. (Opzionale) Installa le dipendenze GlobalProtect
 sudo apt install -y openconnect vpnc
@@ -643,7 +643,7 @@ sudo dnf install -y openfortivpn python3-gobject gtk4 libadwaita \
 
 # Installa dipendenze — Debian/Ubuntu:
 sudo apt install -y openfortivpn python3-gi gir1.2-gtk-4.0 gir1.2-adw-1 \
-    gir1.2-webkit-6.0 gir1.2-secret-1 policykit-1 ppp \
+    gir1.2-webkit-6.0 gir1.2-secret-1 polkitd ppp \
     gir1.2-appindicator3-0.1 openconnect vpnc
 
 # Esegui in modalita sviluppo

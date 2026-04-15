@@ -170,7 +170,7 @@ if [[ "$BUILD_WHAT" == "all" || "$BUILD_WHAT" == "deb" ]]; then
         --depends "python3-gi" \
         --depends "gir1.2-gtk-4.0" \
         --depends "gir1.2-adw-1" \
-        --depends "policykit-1" \
+        --depends "polkitd | policykit-1" \
         --deb-priority optional \
         --category net \
         --package "$OUTDIR/${NAME}_${VERSION}_all.deb" \
