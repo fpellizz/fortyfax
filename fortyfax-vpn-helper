@@ -20,6 +20,17 @@ case "$ACTION" in
                 exec openfortivpn "$@"
                 ;;
             gpclient)
+                # Before starting a new gpclient session, cleanup any stale
+                # instance (from a previous crashed run). Done inline in the
+                # same pkexec call to avoid an extra password prompt.
+                # Skip cleanup for subcommands that don't start a new tunnel.
+                if [[ "${1:-}" != "disconnect" && "${1:-}" != "launch-gui" ]]; then
+                    gpclient disconnect 2>/dev/null || true
+                    pkill -f gpclient 2>/dev/null || true
+                    pkill -f openconnect 2>/dev/null || true
+                    # Give processes a moment to exit
+                    sleep 0.3
+                fi
                 exec gpclient "$@"
                 ;;
             *)
