@@ -51,16 +51,39 @@ definitions:
             | grep -o "\"name\": \"[^\"]*\"" || (echo "ERRORE: nessun file in Downloads" && exit 1)
           - echo "Packages uploaded to https://bitbucket.org/${BITBUCKET_WORKSPACE}/${BITBUCKET_REPO_SLUG}/downloads/"
 
+    - step: &mirror-github
+        name: Mirror to GitHub
+        clone:
+          depth: full          # il clone shallow non basta per pushare la history
+        script:
+          # Mirror one-way: Bitbucket è la sorgente di verità, su GitHub
+          # non si committa mai (verrebbe sovrascritto dal --force).
+          - export MIRROR_URL="https://x-access-token:${GITHUB_MIRROR_TOKEN}@github.com/fpellizz/fortyfax.git"
+          - >
+            if [ -n "${BITBUCKET_TAG:-}" ]; then
+              git push --force "$MIRROR_URL" "refs/tags/${BITBUCKET_TAG}:refs/tags/${BITBUCKET_TAG}";
+            else
+              git push --force "$MIRROR_URL" "HEAD:refs/heads/${BITBUCKET_BRANCH}";
+              git push --force --tags "$MIRROR_URL";
+            fi
+
 pipelines:
   # Build on every push (artifacts available for 14 days)
   default:
     - step: *build-packages
 
-  # On tag push: build + upload to Downloads
+  # Master: build + mirror su GitHub
+  branches:
+    master:
+      - step: *build-packages
+      - step: *mirror-github
+
+  # On tag push: build + upload to Downloads + mirror su GitHub
   tags:
     'v*':
       - step: *build-packages
       - step: *upload-downloads
+      - step: *mirror-github
 
   # Manual trigger from any branch
   custom:
