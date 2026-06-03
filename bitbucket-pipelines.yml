@@ -58,6 +58,7 @@ definitions:
         script:
           # Mirror one-way: Bitbucket è la sorgente di verità, su GitHub
           # non si committa mai (verrebbe sovrascritto dal --force).
+          - dnf install -y git    # fedora:latest non lo include
           - export MIRROR_URL="https://x-access-token:${GITHUB_MIRROR_TOKEN}@github.com/fpellizz/fortyfax.git"
           - >
             if [ -n "${BITBUCKET_TAG:-}" ]; then

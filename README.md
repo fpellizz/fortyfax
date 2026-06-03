@@ -8,6 +8,9 @@
 ![License](https://img.shields.io/badge/license-GPL--3.0-orange)
 ![Platform](https://img.shields.io/badge/platform-Linux-lightgrey)
 
+> [!NOTE]
+> Il repository su GitHub ([fpellizz/fortyfax](https://github.com/fpellizz/fortyfax)) è un **mirror in sola lettura**, sincronizzato automaticamente. Lo sviluppo avviene su [Bitbucket](https://bitbucket.org/decisyon/fortyfax): pull request e segnalazioni vanno fatte lì. I pacchetti pre-compilati (RPM/DEB) si scaricano dalla sezione [Downloads](https://bitbucket.org/decisyon/fortyfax/downloads/) di Bitbucket.
+
 ---
 
 ## Panoramica
