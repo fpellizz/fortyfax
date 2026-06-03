@@ -146,7 +146,7 @@ sudo dnf copr enable yuezk/globalprotect-openconnect
 sudo dnf install -y globalprotect-openconnect
 
 # 2. Clona il repository
-git clone https://stazzo@bitbucket.org/decisyon/fortyfax.git
+git clone https://bitbucket.org/decisyon/fortyfax.git
 cd fortyfax
 
 # 3. Installa (copia i file, crea .desktop e policy PolicyKit)
@@ -169,7 +169,7 @@ sudo add-apt-repository ppa:yuezk/globalprotect-openconnect
 sudo apt install -y globalprotect-openconnect
 
 # 2. Clona il repository
-git clone https://stazzo@bitbucket.org/decisyon/fortyfax.git
+git clone https://bitbucket.org/decisyon/fortyfax.git
 cd fortyfax
 
 # 3. Installa (copia i file, crea .desktop e policy PolicyKit)
@@ -182,7 +182,7 @@ fortyfax
 ### Esecuzione senza installazione
 
 ```bash
-git clone https://stazzo@bitbucket.org/decisyon/fortyfax.git
+git clone https://bitbucket.org/decisyon/fortyfax.git
 cd fortyfax
 python3 ./fortyfax-bin
 
@@ -644,7 +644,7 @@ sudo dnf install globalprotect-openconnect
 ### Setup ambiente di sviluppo
 
 ```bash
-git clone https://stazzo@bitbucket.org/decisyon/fortyfax.git
+git clone https://bitbucket.org/decisyon/fortyfax.git
 cd fortyfax
 
 # Installa dipendenze — Fedora:

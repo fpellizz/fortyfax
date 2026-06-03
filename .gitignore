@@ -51,3 +51,6 @@ Thumbs.db
 dist/
 __pycache__/
 *.pyc
+
+# Materiale locale legato a clienti: mai committare
+STEVANATO/
