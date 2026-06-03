@@ -27,18 +27,28 @@ definitions:
         name: Upload to Bitbucket Downloads
         script:
           - ls -lh dist/
+          # NOTE: --fail-with-body fa fallire lo step su errore HTTP (4xx/5xx)
+          # mostrando la risposta del server nel log. Senza, curl esce con 0
+          # anche se l'upload viene rifiutato (es. 401 per token non valido)
+          # e la pipeline risulta verde senza aver pubblicato nulla.
           # Upload RPM
           - >
-            curl -X POST
+            curl --fail-with-body -X POST
             "https://api.bitbucket.org/2.0/repositories/${BITBUCKET_WORKSPACE}/${BITBUCKET_REPO_SLUG}/downloads"
             -F files=@"$(ls dist/*.rpm)"
             -u "${BB_AUTH_USER}:${BB_AUTH_TOKEN}"
           # Upload DEB
           - >
-            curl -X POST
+            curl --fail-with-body -X POST
             "https://api.bitbucket.org/2.0/repositories/${BITBUCKET_WORKSPACE}/${BITBUCKET_REPO_SLUG}/downloads"
             -F files=@"$(ls dist/*.deb)"
             -u "${BB_AUTH_USER}:${BB_AUTH_TOKEN}"
+          # Verifica che i file risultino davvero pubblicati
+          - >
+            curl --fail-with-body -s
+            "https://api.bitbucket.org/2.0/repositories/${BITBUCKET_WORKSPACE}/${BITBUCKET_REPO_SLUG}/downloads"
+            -u "${BB_AUTH_USER}:${BB_AUTH_TOKEN}"
+            | grep -o "\"name\": \"[^\"]*\"" || (echo "ERRORE: nessun file in Downloads" && exit 1)
           - echo "Packages uploaded to https://bitbucket.org/${BITBUCKET_WORKSPACE}/${BITBUCKET_REPO_SLUG}/downloads/"
 
 pipelines:
