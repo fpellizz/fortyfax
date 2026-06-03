@@ -2,6 +2,7 @@
 
 import logging
 import os
+import re
 import shutil
 import subprocess
 import threading
@@ -11,6 +12,72 @@ from typing import Callable
 from .profile import VPNProfile
 
 log = logging.getLogger(__name__)
+
+# --- Interpretazione errori --------------------------------------------------
+# Regole (regex → messaggio parlante) per tradurre le righe di log di
+# openfortivpn/gpclient/openconnect in messaggi comprensibili. Per ogni riga
+# vince la prima regola che matcha; a fine processo le righe vengono esaminate
+# dalla più recente alla più vecchia.
+_ERROR_RULES: list[tuple[re.Pattern, str]] = [
+    # SSO/SAML prima della regola credenziali: "SAML authentication failed"
+    # matcherebbe anche quella, ma "credenziali errate" sarebbe fuorviante.
+    (re.compile(r"saml.*(fail|error|denied|cancel)|sso.*(fail|error|cancel)", re.I),
+     "Autenticazione SSO non riuscita o annullata"),
+    # Credenziali / autenticazione
+    (re.compile(
+        r"could not authenticate|authentication fail|login fail"
+        r"|invalid (username|password|credential)|incorrect password"
+        r"|failed to obtain webvpn cookie",
+        re.I),
+     "Credenziali errate: nome utente o password non validi"),
+    (re.compile(r"two.?factor|second factor|otp token", re.I),
+     "Il server richiede un secondo fattore di autenticazione (2FA)"),
+    # Risoluzione nome / DNS
+    (re.compile(
+        r"name or service not known|could not resolve|failed to lookup"
+        r"|temporary failure in name resolution|dns error|getaddrinfo|gethostbyname",
+        re.I),
+     "Indirizzo del server non risolvibile: controlla l'host nel profilo "
+     "e la connessione a Internet"),
+    # Rete
+    (re.compile(r"connection refused", re.I),
+     "Connessione rifiutata dal server: controlla indirizzo e porta"),
+    (re.compile(r"network is unreachable|no route to host", re.I),
+     "Rete non raggiungibile: controlla la connessione a Internet"),
+    (re.compile(r"connection reset by peer", re.I),
+     "Connessione interrotta dal server"),
+    (re.compile(r"timed? out", re.I),
+     "Timeout: il server VPN non risponde"),
+    # Certificati / TLS
+    (re.compile(
+        r"certificate.*(fail|invalid|expired|unknown|not trusted)"
+        r"|invalid peer certificate|self.signed|unable to get local issuer"
+        r"|handshake fail",
+        re.I),
+     "Certificato del server non attendibile: verifica il certificato "
+     "del gateway (o aggiungilo ai certificati fidati del profilo)"),
+    # Sistema
+    (re.compile(r"kernel does not support ppp", re.I),
+     "Supporto PPP mancante nel sistema: verifica che pppd sia installato"),
+    (re.compile(r"failed to (open|launch|spawn).*browser|browser.*not found", re.I),
+     "Impossibile aprire il browser per il login SSO"),
+]
+
+# Codici di uscita noti (pkexec / segnali)
+_EXIT_CODE_MESSAGES = {
+    126: "Autenticazione amministratore annullata",
+    127: "Autorizzazione amministratore negata (pkexec)",
+    -15: "Processo VPN terminato esternamente (SIGTERM)",
+    -9: "Processo VPN terminato forzatamente (SIGKILL)",
+}
+
+
+def _interpret_error_line(line: str) -> str | None:
+    """Traduce una riga di log in un messaggio parlante, se riconosciuta."""
+    for rx, msg in _ERROR_RULES:
+        if rx.search(line):
+            return msg
+    return None
 
 def _resolve_helper() -> str:
     """Resolve the helper script path.
@@ -80,6 +147,20 @@ class VPNConnection:
             self._log_lines = self._log_lines[-1500:]
         if self._on_log_line:
             self._on_log_line(line)
+
+    def _friendly_failure_message(self, retcode: int) -> str:
+        """Messaggio parlante per una connessione fallita.
+
+        Esamina le righe di log recenti (dalla più nuova) cercando una causa
+        riconoscibile; in mancanza, traduce i codici di uscita noti.
+        """
+        for line in reversed(self._log_lines[-150:]):
+            msg = _interpret_error_line(line)
+            if msg:
+                return msg
+        if retcode in _EXIT_CODE_MESSAGES:
+            return _EXIT_CODE_MESSAGES[retcode]
+        return f"Connessione fallita (codice {retcode})"
 
     def connect(self, profile: VPNProfile, cookie: str = "", password: str = "") -> bool:
         """Start VPN connection based on profile type."""
@@ -154,7 +235,10 @@ class VPNConnection:
 
                 if "ERROR" in line:
                     if self._state == ConnectionState.CONNECTING:
-                        self._set_state(ConnectionState.ERROR, line)
+                        self._set_state(
+                            ConnectionState.ERROR,
+                            _interpret_error_line(line) or line,
+                        )
 
         except Exception as e:
             self._append_log(f"[ERRORE monitor] {e}")
@@ -169,7 +253,7 @@ class VPNConnection:
             elif self._state == ConnectionState.CONNECTING:
                 self._set_state(
                     ConnectionState.ERROR,
-                    f"Connessione fallita (codice {retcode})",
+                    self._friendly_failure_message(retcode),
                 )
             self._process = None
 
@@ -282,7 +366,10 @@ class VPNConnection:
                 if "ERROR" in line and self._state == ConnectionState.CONNECTING:
                     # Skip false positives from debug connection logs
                     if "connect" not in line.lower() or "failed" in line.lower():
-                        self._set_state(ConnectionState.ERROR, line)
+                        self._set_state(
+                            ConnectionState.ERROR,
+                            _interpret_error_line(line) or line,
+                        )
 
         except Exception as e:
             self._append_log(f"[ERRORE monitor GP] {e}")
@@ -298,7 +385,7 @@ class VPNConnection:
             elif self._state == ConnectionState.CONNECTING:
                 self._set_state(
                     ConnectionState.ERROR,
-                    f"Connessione fallita (codice {retcode})",
+                    self._friendly_failure_message(retcode),
                 )
             self._process = None
             # Cleanup temp files
