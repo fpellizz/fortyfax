@@ -15,7 +15,8 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
 
 NAME="fortyfax"
-VERSION=$(python3 -c "
+# -B: niente __pycache__ nel sorgente (finirebbe nei pacchetti)
+VERSION=$(python3 -B -c "
 import sys; sys.path.insert(0, '.')
 from fortyfax import __version__; print(__version__)
 ")

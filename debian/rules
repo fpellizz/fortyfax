@@ -5,6 +5,12 @@
 %:
 	dh $@
 
+# Niente bytecode nel pacchetto (lintian: package-installs-python-pycache-dir)
+override_dh_install:
+	dh_install
+	find debian/fortyfax -name '__pycache__' -type d -exec rm -rf {} +
+	find debian/fortyfax -name '*.pyc' -delete
+
 # I due launcher devono restare eseguibili anche sotto /usr/share
 override_dh_fixperms:
 	dh_fixperms
