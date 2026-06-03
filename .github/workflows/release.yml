@@ -1,0 +1,45 @@
+# Gira sul mirror GitHub (fpellizz/fortyfax): quando la pipeline Bitbucket
+# mirrora un tag v*, questo workflow builda RPM+DEB e crea la GitHub Release
+# con gli artefatti allegati. Usa il GITHUB_TOKEN integrato, nessun segreto
+# da configurare.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  # Lancio manuale (tab Actions > Release > Run workflow su un tag)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    runs-on: ubuntu-latest
+    container: fedora:latest
+    steps:
+      # Stesse dipendenze dello step build della pipeline Bitbucket
+      # (+ git, che serve anche a actions/checkout dentro il container)
+      - name: Install build dependencies
+        run: dnf install -y python3 ruby ruby-devel rpm-build gcc make rsync git
+
+      - name: Install fpm
+        run: gem install --no-document fpm
+
+      - uses: actions/checkout@v4
+
+      - name: Build RPM & DEB
+        run: |
+          export VERSION=$(python3 -c "import sys; sys.path.insert(0,'.'); from fortyfax import __version__; print(__version__)")
+          echo "Building Fortyfax v${VERSION}"
+          chmod +x build-pkg.sh
+          ./build-pkg.sh
+          ls -lh dist/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.rpm
+            dist/*.deb
+          generate_release_notes: true
