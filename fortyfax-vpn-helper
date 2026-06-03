@@ -26,8 +26,11 @@ case "$ACTION" in
                 # Skip cleanup for subcommands that don't start a new tunnel.
                 if [[ "${1:-}" != "disconnect" && "${1:-}" != "launch-gui" ]]; then
                     gpclient disconnect 2>/dev/null || true
-                    pkill -f gpclient 2>/dev/null || true
-                    pkill -f openconnect 2>/dev/null || true
+                    # NOTE: -x (exact comm match), NOT -f: with -f the pattern
+                    # would match this helper's own command line
+                    # ("... start gpclient connect ...") and SIGTERM ourselves.
+                    pkill -x gpclient 2>/dev/null || true
+                    pkill -x openconnect 2>/dev/null || true
                     # Give processes a moment to exit
                     sleep 0.3
                 fi
@@ -87,8 +90,8 @@ case "$ACTION" in
         # Runs: gpclient disconnect + pkill gpclient + pkill openconnect
         # Exit 0 always (cleanup is best-effort).
         gpclient disconnect 2>/dev/null || true
-        pkill -f gpclient 2>/dev/null || true
-        pkill -f openconnect 2>/dev/null || true
+        pkill -x gpclient 2>/dev/null || true
+        pkill -x openconnect 2>/dev/null || true
         # Also cleanup temp wrapper files
         rm -f /tmp/fortyfax_browser_wrapper.sh /tmp/fortyfax_vpnc_wrapper.sh 2>/dev/null || true
         exit 0
