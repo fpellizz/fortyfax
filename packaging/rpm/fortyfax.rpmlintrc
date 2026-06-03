@@ -1,0 +1,9 @@
+# Falsi positivi noti per fortyfax
+
+# "openfortivpn" è il nome del backend, non un errore di spelling
+addFilter(r'spelling-error .*openfortivpn')
+
+# App PyGObject noarch: le dipendenze su libadwaita/libsecret sono volute,
+# in Fedora le typelib GI sono incluse nel pacchetto principale della libreria
+# e non esistono provides automatici typelib() come in openSUSE.
+addFilter(r'explicit-lib-dependency (libadwaita|libsecret)')

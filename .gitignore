@@ -54,3 +54,15 @@ __pycache__/
 
 # Materiale locale legato a clienti: mai committare
 STEVANATO/
+
+# Script di installazione manuale: rimossi in favore dei pacchetti deb/rpm
+install.sh
+uninstall.sh
+fortyfax.egg-info/
+
+# Artefatti di build debian (dpkg-buildpackage)
+debian/.debhelper/
+debian/fortyfax/
+debian/files
+debian/*.substvars
+debian/debhelper-build-stamp

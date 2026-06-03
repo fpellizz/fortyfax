@@ -1,0 +1,12 @@
+#!/usr/bin/make -f
+# Build semplice con debhelper: applicazione Python pura installata
+# in /usr/share/fortyfax (vedi debian/install e debian/links).
+
+%:
+	dh $@
+
+# I due launcher devono restare eseguibili anche sotto /usr/share
+override_dh_fixperms:
+	dh_fixperms
+	chmod 755 debian/fortyfax/usr/share/fortyfax/fortyfax-bin
+	chmod 755 debian/fortyfax/usr/share/fortyfax/fortyfax-vpn-helper

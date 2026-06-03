@@ -1,0 +1,8 @@
+fortyfax usr/share/fortyfax/
+fortyfax-bin usr/share/fortyfax/
+fortyfax-vpn-helper usr/share/fortyfax/
+icons/tray_*.png usr/share/fortyfax/icons/
+icons/tray_*.svg usr/share/fortyfax/icons/
+icons/hicolor usr/share/icons/
+data/com.github.fortyfax.desktop usr/share/applications/
+data/com.github.fortyfax.policy usr/share/polkit-1/actions/

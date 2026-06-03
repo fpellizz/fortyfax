@@ -1,0 +1,29 @@
+Source: fortyfax
+Section: net
+Priority: optional
+Maintainer: Fabio Pellizzaro <fabio.pellizzaro@decisyon.com>
+Build-Depends: debhelper-compat (= 13)
+Standards-Version: 4.6.2
+Homepage: https://bitbucket.org/decisyon/fortyfax
+Rules-Requires-Root: no
+
+Package: fortyfax
+Architecture: all
+Depends: ${misc:Depends},
+         python3 (>= 3.10),
+         python3-gi,
+         gir1.2-gtk-4.0,
+         gir1.2-adw-1,
+         gir1.2-webkit-6.0,
+         gir1.2-secret-1,
+         polkitd | policykit-1
+Recommends: openfortivpn,
+            ppp,
+            gir1.2-ayatanaappindicator3-0.1 | gir1.2-appindicator3-0.1
+Suggests: openconnect,
+          vpnc
+Description: GUI for openfortivpn and GlobalProtect with SAML/SSO support
+ Fortyfax is a native GTK4/libadwaita GUI for openfortivpn (Fortinet
+ FortiGate) and GlobalProtect-openconnect (Palo Alto), with full
+ SAML/SSO authentication support, profile management, system tray
+ icon, desktop notifications and a DNS watchdog for GlobalProtect.

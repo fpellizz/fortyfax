@@ -136,50 +136,36 @@ L'icona nella system tray cambia colore in base allo stato della VPN:
 
 ## Installazione
 
-### Installazione rapida (Fedora / RHEL)
+### Installazione da pacchetto (consigliata)
+
+I pacchetti pre-compilati sono disponibili nella sezione [Downloads](https://bitbucket.org/decisyon/fortyfax/downloads/) di Bitbucket e nelle [Release](https://github.com/fpellizz/fortyfax/releases) del mirror GitHub. Vengono generati automaticamente dalla CI ad ogni tag `v*`.
+
+**Fedora / RHEL:**
 
 ```bash
-# 1. Installa le dipendenze comuni + Fortinet
-sudo dnf install -y openfortivpn python3-gobject gtk4 libadwaita \
-    webkitgtk6.0 libsecret polkit ppp libappindicator-gtk3
+sudo dnf install ./fortyfax-<versione>-1.noarch.rpm
+```
 
-# 1b. (Opzionale) Installa le dipendenze GlobalProtect
+**Debian / Ubuntu:**
+
+```bash
+sudo apt install ./fortyfax_<versione>_all.deb
+```
+
+Il pacchetto installa applicazione, launcher, file `.desktop`, icone e policy PolicyKit, e tira dentro automaticamente le dipendenze comuni (GTK4, libadwaita, PyGObject, ...).
+
+**Dipendenze GlobalProtect** (solo se usi Palo Alto, non pacchettizzate nelle distro):
+
+```bash
+# Fedora
 sudo dnf install -y openconnect vpnc-script
 sudo dnf copr enable yuezk/globalprotect-openconnect
 sudo dnf install -y globalprotect-openconnect
 
-# 2. Clona il repository
-git clone https://bitbucket.org/decisyon/fortyfax.git
-cd fortyfax
-
-# 3. Installa (copia i file, crea .desktop e policy PolicyKit)
-sudo ./install.sh
-
-# 4. Avvia
-fortyfax
-```
-
-### Installazione rapida (Debian / Ubuntu)
-
-```bash
-# 1. Installa le dipendenze comuni + Fortinet
-sudo apt install -y openfortivpn python3-gi gir1.2-gtk-4.0 gir1.2-adw-1 \
-    gir1.2-webkit-6.0 gir1.2-secret-1 polkitd ppp gir1.2-appindicator3-0.1
-
-# 1b. (Opzionale) Installa le dipendenze GlobalProtect
+# Debian / Ubuntu
 sudo apt install -y openconnect vpnc
 sudo add-apt-repository ppa:yuezk/globalprotect-openconnect
 sudo apt install -y globalprotect-openconnect
-
-# 2. Clona il repository
-git clone https://bitbucket.org/decisyon/fortyfax.git
-cd fortyfax
-
-# 3. Installa (copia i file, crea .desktop e policy PolicyKit)
-sudo ./install.sh
-
-# 4. Avvia
-fortyfax
 ```
 
 ### Esecuzione senza installazione
@@ -200,41 +186,22 @@ sudo ./dev-setup-policy.sh
 
 Senza una delle due cose, ogni connessione/disconnessione ti chiedera' la password di sistema.
 
-### Installazione da pacchetto (RPM / DEB)
-
-I pacchetti pre-compilati sono disponibili nella sezione [Downloads](https://bitbucket.org/decisyon/fortyfax/downloads/) del repository. Vengono generati automaticamente dalla pipeline CI/CD ad ogni tag `v*`.
-
-**Fedora / RHEL:**
-
-```bash
-sudo dnf install ./fortyfax-2.2.0-1.noarch.rpm
-```
-
-**Debian / Ubuntu:**
-
-```bash
-sudo apt install ./fortyfax_2.2.0_all.deb
-```
-
-I pacchetti installano automaticamente l'applicazione in `/usr/share/fortyfax`, il launcher in `/usr/bin/fortyfax`, il file `.desktop`, le icone e la policy PolicyKit.
-
 ### Build dei pacchetti
 
-Per generare i pacchetti RPM e DEB dal sorgente:
+I pacchetti vengono costruiti con gli strumenti nativi delle distro: `rpmbuild` con lo spec in `packaging/rpm/` (Fedora Packaging Guidelines) e `dpkg-buildpackage` con la directory `debian/` (Debian Policy).
 
 ```bash
-# Prerequisito: fpm
-sudo gem install fpm
-
-# Build entrambi
-./build-pkg.sh
-
-# Solo RPM o solo DEB
+# RPM (richiede: rpm-build, python3-devel, desktop-file-utils)
 ./build-pkg.sh rpm
+
+# DEB (richiede: debhelper, dpkg-dev)
 ./build-pkg.sh deb
+
+# Entrambi (richiede entrambe le toolchain)
+./build-pkg.sh
 ```
 
-I pacchetti vengono generati nella cartella `dist/`.
+I pacchetti vengono generati nella cartella `dist/`. Per il bump di versione coordinato (`__init__.py` + spec + `debian/changelog`) usa `./scripts/bump-version.sh X.Y.Z`.
 
 ### Verifica prerequisiti
 
@@ -268,7 +235,11 @@ Se manca qualcosa, il checker mostra il comando esatto per risolvere.
 ### Disinstallazione
 
 ```bash
-sudo ./uninstall.sh
+# Fedora / RHEL
+sudo dnf remove fortyfax
+
+# Debian / Ubuntu
+sudo apt remove fortyfax
 ```
 
 I profili in `~/.config/fortyfax/` **non** vengono rimossi.
@@ -377,9 +348,11 @@ Clicca **"Disconnetti"** per terminare la connessione VPN in modo pulito.
 fortyfax/
 ├── fortyfax-bin              # Launcher eseguibile
 ├── fortyfax-vpn-helper       # Helper per avvio/stop VPN (openfortivpn/gpclient) via pkexec
-├── build-pkg.sh              # Script per generare pacchetti RPM e DEB
-├── install.sh                # Script di installazione di sistema (alternativa ai pacchetti)
-├── uninstall.sh              # Script di rimozione
+├── build-pkg.sh              # Script per generare pacchetti RPM e DEB (rpmbuild/dpkg-buildpackage)
+├── packaging/rpm/            # Spec RPM + rpmlintrc (Fedora Packaging Guidelines)
+├── debian/                   # Packaging Debian (control, rules, changelog, ...)
+├── data/                     # Desktop file e policy PolicyKit
+├── scripts/                  # bump-version.sh e utilità di manutenzione
 ├── dev-setup-policy.sh       # Installa PolicyKit policy per il dev path (evita prompt password)
 ├── README.md
 ├── LICENSE
@@ -526,7 +499,7 @@ Le impostazioni sono accessibili dal menu hamburger > **Preferenze** (o `Ctrl+,`
 
 ### PolicyKit
 
-Lo script `install.sh` configura una policy PolicyKit che permette di avviare e terminare openfortivpn **senza richiesta di password** per l'utente attivo sulla sessione locale (`allow_active=yes`).
+Il pacchetto installa una policy PolicyKit che permette di avviare e terminare openfortivpn **senza richiesta di password** per l'utente attivo sulla sessione locale (`allow_active=yes`).
 
 Questo avviene tramite lo script helper `fortyfax-vpn-helper` che:
 
@@ -560,8 +533,9 @@ python3 -c "import gi; gi.require_version('WebKit', '6.0'); print('OK')"
 
 **Soluzione**:
 ```bash
-# Riesegui l'installer per reinstallare la policy
-sudo ./install.sh
+# Reinstalla il pacchetto per ripristinare la policy
+sudo dnf reinstall fortyfax        # Fedora/RHEL
+sudo apt reinstall fortyfax        # Debian/Ubuntu
 ```
 
 ### La connessione cade subito

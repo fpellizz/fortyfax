@@ -1,7 +1,7 @@
 # Gira sul mirror GitHub (fpellizz/fortyfax): quando la pipeline Bitbucket
-# mirrora un tag v*, questo workflow builda RPM+DEB e crea la GitHub Release
-# con gli artefatti allegati. Usa il GITHUB_TOKEN integrato, nessun segreto
-# da configurare.
+# mirrora un tag v*, builda RPM (Fedora) e DEB (Debian) con gli strumenti
+# nativi delle distro e crea la GitHub Release con gli artefatti allegati.
+# Usa il GITHUB_TOKEN integrato, nessun segreto da configurare.
 name: Release
 
 on:
@@ -14,28 +14,48 @@ permissions:
   contents: write
 
 jobs:
-  build-release:
+  build-rpm:
     runs-on: ubuntu-latest
     container: fedora:latest
     steps:
-      # Stesse dipendenze dello step build della pipeline Bitbucket
-      # (+ git, che serve anche a actions/checkout dentro il container)
       - name: Install build dependencies
-        run: dnf install -y python3 ruby ruby-devel rpm-build gcc make rsync git
-
-      - name: Install fpm
-        run: gem install --no-document fpm
-
+        run: dnf install -y rpm-build python3-devel desktop-file-utils rpmlint git tar
       - uses: actions/checkout@v4
-
-      - name: Build RPM & DEB
+      - name: Build RPM
         run: |
-          export VERSION=$(python3 -c "import sys; sys.path.insert(0,'.'); from fortyfax import __version__; print(__version__)")
-          echo "Building Fortyfax v${VERSION}"
-          chmod +x build-pkg.sh
-          ./build-pkg.sh
-          ls -lh dist/
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          ./build-pkg.sh rpm
+          rpmlint -r packaging/rpm/fortyfax.rpmlintrc dist/*.rpm
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rpm
+          path: dist/*.rpm
 
+  build-deb:
+    runs-on: ubuntu-latest
+    container: debian:bookworm
+    steps:
+      - name: Install build dependencies
+        run: apt-get update -qq && apt-get install -y -qq debhelper dpkg-dev lintian python3 git
+      - uses: actions/checkout@v4
+      - name: Build DEB
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          ./build-pkg.sh deb
+          lintian --fail-on error dist/*.deb
+      - uses: actions/upload-artifact@v4
+        with:
+          name: deb
+          path: dist/*.deb
+
+  release:
+    needs: [build-rpm, build-deb]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:

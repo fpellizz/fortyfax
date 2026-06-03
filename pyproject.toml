@@ -1,0 +1,57 @@
+[build-system]
+requires = ["setuptools==80.9.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fortyfax"
+# Fonte unica della versione: fortyfax/__init__.py (__version__)
+dynamic = ["version"]
+description = "GUI GTK4/Adwaita per openfortivpn e GlobalProtect con supporto SAML/SSO"
+readme = "README.md"
+license = "GPL-3.0-only"
+license-files = ["LICENSE"]
+requires-python = ">=3.10"
+authors = [
+    { name = "Fabio Pellizzaro", email = "fabio.pellizzaro@decisyon.com" },
+]
+keywords = ["vpn", "fortinet", "globalprotect", "openfortivpn", "openconnect", "gtk4", "saml", "sso"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: X11 Applications :: GTK",
+    "Intended Audience :: End Users/Desktop",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: System :: Networking",
+]
+
+# Dipendenze Python pinnate. NOTA: PyGObject richiede le librerie GI di
+# sistema (GTK4, libadwaita, WebKitGTK 6.0, libsecret) installate dalla
+# distro: sono dichiarate nei pacchetti RPM/DEB, non installabili da pip.
+#   - Gtk 4.0 / Gtk 3.0 (tray AppIndicator)
+#   - Adw 1
+#   - WebKit 6.0
+#   - Secret 1
+#   - AppIndicator3 0.1 (opzionale)
+dependencies = [
+    "PyGObject==3.54.5",
+]
+
+[project.urls]
+Homepage = "https://bitbucket.org/decisyon/fortyfax"
+Repository = "https://bitbucket.org/decisyon/fortyfax"
+Mirror = "https://github.com/fpellizz/fortyfax"
+Downloads = "https://bitbucket.org/decisyon/fortyfax/downloads/"
+
+[project.scripts]
+fortyfax = "fortyfax.app:main"
+
+[tool.setuptools]
+packages = ["fortyfax"]
+
+[tool.setuptools.dynamic]
+version = { attr = "fortyfax.__version__" }
