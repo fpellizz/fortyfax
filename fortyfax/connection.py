@@ -23,11 +23,18 @@ _ERROR_RULES: list[tuple[re.Pattern, str]] = [
     # matcherebbe anche quella, ma "credenziali errate" sarebbe fuorviante.
     (re.compile(r"saml.*(fail|error|denied|cancel)|sso.*(fail|error|cancel)", re.I),
      "Autenticazione SSO non riuscita o annullata"),
+    # Account bloccato (più specifico delle credenziali, va prima)
+    (re.compile(r"account (locked|disabled|expired)", re.I),
+     "Account bloccato o disabilitato: contatta l'amministratore"),
     # Credenziali / autenticazione
+    # (include i formati di gpclient: "Gateway login failed/error",
+    #  "Prelogin error", "GP response error: ... status=512")
     (re.compile(
         r"could not authenticate|authentication fail|login fail"
         r"|invalid (username|password|credential)|incorrect password"
-        r"|failed to obtain webvpn cookie",
+        r"|failed to obtain webvpn cookie"
+        r"|(gateway|portal) login (error|fail)|prelogin error"
+        r"|gp response error.*status=51[23]",
         re.I),
      "Credenziali errate: nome utente o password non validi"),
     (re.compile(r"two.?factor|second factor|otp token", re.I),
