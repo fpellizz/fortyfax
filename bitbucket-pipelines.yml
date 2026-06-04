@@ -1,26 +1,29 @@
+# CI Fortyfax: build pacchetti nativi (rpmbuild/dpkg-buildpackage),
+# pubblicazione in Downloads sui tag, mirroring su GitHub.
 image: fedora:latest
 
 definitions:
   steps:
-    - step: &build-packages
-        name: Build RPM & DEB
+    - step: &build-rpm
+        name: Build RPM (Fedora guidelines)
+        image: fedora:latest
         script:
-          # Install build dependencies
-          - dnf install -y python3 ruby ruby-devel rpm-build gcc make rsync
-          - gem install --no-document fpm
-
-          # Extract version from source
-          - export VERSION=$(python3 -c "import sys; sys.path.insert(0,'.'); from fortyfax import __version__; print(__version__)")
-          - echo "Building Fortyfax v${VERSION}"
-
-          # Build packages
-          - chmod +x build-pkg.sh
-          - ./build-pkg.sh
-
-          # List generated packages
-          - ls -lh dist/
+          - dnf install -y rpm-build python3-devel desktop-file-utils rpmlint git tar
+          - ./build-pkg.sh rpm
+          # Lint: fallisce su errori (i falsi positivi noti sono filtrati dal rpmlintrc)
+          - rpmlint -r packaging/rpm/fortyfax.rpmlintrc dist/*.rpm
         artifacts:
           - dist/*.rpm
+
+    - step: &build-deb
+        name: Build DEB (Debian Policy)
+        image: debian:bookworm
+        script:
+          - apt-get update -qq && apt-get install -y -qq debhelper dpkg-dev lintian python3
+          - ./build-pkg.sh deb
+          # Lint: fallisce solo su errori (i warning vengono mostrati nel log)
+          - lintian --fail-on error dist/*.deb
+        artifacts:
           - dist/*.deb
 
     - step: &upload-downloads
@@ -69,25 +72,25 @@ definitions:
             fi
 
 pipelines:
-  # Build on every push (artifacts available for 14 days)
+  # Build su ogni push (artefatti disponibili 14 giorni)
   default:
-    - step: *build-packages
+    - parallel:
+        - step: *build-rpm
+        - step: *build-deb
 
   # Master: build + mirror su GitHub
   branches:
     master:
-      - step: *build-packages
+      - parallel:
+          - step: *build-rpm
+          - step: *build-deb
       - step: *mirror-github
 
-  # On tag push: build + upload to Downloads + mirror su GitHub
+  # Tag v*: build + upload in Downloads + mirror su GitHub
   tags:
     'v*':
-      - step: *build-packages
+      - parallel:
+          - step: *build-rpm
+          - step: *build-deb
       - step: *upload-downloads
       - step: *mirror-github
-
-  # Manual trigger from any branch
-  custom:
-    release:
-      - step: *build-packages
-      - step: *upload-downloads

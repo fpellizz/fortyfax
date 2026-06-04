@@ -1,192 +1,71 @@
 #!/bin/bash
-# Build RPM and/or DEB packages for Fortyfax using fpm.
+# Build dei pacchetti Fortyfax con gli strumenti nativi delle distro:
+#   RPM: rpmbuild + packaging/rpm/fortyfax.spec (Fedora Packaging Guidelines)
+#   DEB: dpkg-buildpackage + debian/ (Debian Policy)
 #
 # Usage:
-#   ./build-pkg.sh          # Build both RPM and DEB
-#   ./build-pkg.sh rpm      # Build RPM only
-#   ./build-pkg.sh deb      # Build DEB only
+#   ./build-pkg.sh          # entrambi (richiede entrambe le toolchain)
+#   ./build-pkg.sh rpm      # solo RPM (richiede rpm-build, python3-devel, desktop-file-utils)
+#   ./build-pkg.sh deb      # solo DEB (richiede debhelper, dpkg-dev)
 #
-# Requirements:
-#   gem install fpm
-#   dnf install rpm-build     (for RPM)
+# I pacchetti finiscono in dist/.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
 
-# Extract version from Python package
-VERSION=$(python3 -c "
+NAME="fortyfax"
+# -B: niente __pycache__ nel sorgente (finirebbe nei pacchetti)
+VERSION=$(python3 -B -c "
 import sys; sys.path.insert(0, '.')
 from fortyfax import __version__; print(__version__)
 ")
-NAME="fortyfax"
-ARCH="noarch"
-MAINTAINER="Fabio Pellizzaro <fabio.pellizzaro@decisyon.com>"
-URL="https://bitbucket.org/decisyon/fortyfax"
-DESCRIPTION="GUI per openfortivpn e GlobalProtect con supporto SAML/SSO"
-LICENSE="GPL-3.0"
 
-echo "╔══════════════════════════════════════════════════════╗"
-echo "║         Fortyfax — Build pacchetti v${VERSION}          ║"
-echo "╚══════════════════════════════════════════════════════╝"
-echo
-
-# Check fpm is available
-if ! command -v fpm &>/dev/null; then
-    echo "❌ fpm non trovato. Installa con: sudo gem install fpm"
+# --- Coerenza versioni: __init__.py è la fonte, spec e changelog devono combaciare
+SPEC_VERSION=$(awk '/^Version:/{print $2; exit}' packaging/rpm/fortyfax.spec)
+DEB_VERSION=$(head -1 debian/changelog | sed -E 's/.*\(([^)]+)\).*/\1/')
+if [[ "$SPEC_VERSION" != "$VERSION" || "$DEB_VERSION" != "$VERSION" ]]; then
+    echo "❌ Versioni non allineate:" >&2
+    echo "   fortyfax/__init__.py : $VERSION" >&2
+    echo "   packaging/rpm/*.spec : $SPEC_VERSION" >&2
+    echo "   debian/changelog     : $DEB_VERSION" >&2
+    echo "   Allineale prima di buildare (vedi scripts/bump-version.sh)." >&2
     exit 1
 fi
 
-# Create staging directory
-STAGING=$(mktemp -d)
-trap 'rm -rf "$STAGING"' EXIT
-
-echo "→ Staging in $STAGING"
-
-# --- Stage files ---
-
-# Python package (exclude __pycache__)
-PYDIR="$STAGING/usr/share/fortyfax"
-mkdir -p "$PYDIR"
-rsync -a --exclude='__pycache__' --exclude='*.pyc' fortyfax/ "$PYDIR/fortyfax/"
-rsync -a icons/ "$PYDIR/icons/"
-cp fortyfax-bin "$PYDIR/"
-cp fortyfax-vpn-helper "$PYDIR/"
-chmod 755 "$PYDIR/fortyfax-bin"
-chmod 755 "$PYDIR/fortyfax-vpn-helper"
-
-# Launcher symlinks (created via fpm --after-install)
-BINDIR="$STAGING/usr/bin"
-mkdir -p "$BINDIR"
-ln -sf "/usr/share/fortyfax/fortyfax-bin" "$BINDIR/fortyfax"
-ln -sf "/usr/share/fortyfax/fortyfax-vpn-helper" "$BINDIR/fortyfax-vpn-helper"
-
-# Desktop file
-APPDIR="$STAGING/usr/share/applications"
-mkdir -p "$APPDIR"
-cat > "$APPDIR/com.github.fortyfax.desktop" <<DESKTOP
-[Desktop Entry]
-Name=Fortyfax
-Comment=GUI per openfortivpn e GlobalProtect con supporto SAML/SSO
-Exec=/usr/bin/fortyfax
-Icon=com.github.fortyfax
-Type=Application
-Terminal=false
-Categories=Network;VPN;Security;
-Keywords=VPN;Fortinet;FortiGate;GlobalProtect;PaloAlto;SSL;SAML;SSO;
-StartupNotify=true
-StartupWMClass=com.github.fortyfax
-DESKTOP
-
-# Icons in hicolor theme
-for size in 16 24 32 48 64 128 256 512; do
-    ICONDIR="$STAGING/usr/share/icons/hicolor/${size}x${size}/apps"
-    mkdir -p "$ICONDIR"
-    cp "icons/fortyfax_${size}.png" "$ICONDIR/com.github.fortyfax.png"
-done
-mkdir -p "$STAGING/usr/share/icons/hicolor/scalable/apps"
-cp "icons/fortyfax.svg" "$STAGING/usr/share/icons/hicolor/scalable/apps/com.github.fortyfax.svg"
-
-# PolicyKit policy
-POLKITDIR="$STAGING/usr/share/polkit-1/actions"
-mkdir -p "$POLKITDIR"
-cat > "$POLKITDIR/com.github.fortyfax.policy" <<POLKIT
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE policyconfig PUBLIC
- "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
- "http://www.freedesktop.org/standards/PolicyKit/1.0/policyconfig.dtd">
-<policyconfig>
-  <vendor>Fortyfax</vendor>
-  <vendor_url>${URL}</vendor_url>
-  <action id="com.github.fortyfax.run-vpn">
-    <description>Manage VPN connection (start/stop)</description>
-    <description xml:lang="it">Gestisci connessione VPN (avvio/arresto)</description>
-    <message>Authentication required to manage VPN connection</message>
-    <message xml:lang="it">Autenticazione richiesta per gestire la connessione VPN</message>
-    <defaults>
-      <allow_any>auth_admin</allow_any>
-      <allow_inactive>auth_admin</allow_inactive>
-      <allow_active>yes</allow_active>
-    </defaults>
-    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/fortyfax-vpn-helper</annotate>
-    <annotate key="org.freedesktop.policykit.exec.allow_gui">true</annotate>
-  </action>
-</policyconfig>
-POLKIT
-
-# Post-install script (update icon cache)
-POSTINSTALL=$(mktemp)
-cat > "$POSTINSTALL" <<'SCRIPT'
-#!/bin/bash
-gtk-update-icon-cache -f -t /usr/share/icons/hicolor 2>/dev/null || true
-SCRIPT
-chmod +x "$POSTINSTALL"
-
-# Output directory
 OUTDIR="$SCRIPT_DIR/dist"
 mkdir -p "$OUTDIR"
-
-# Common fpm args
-FPM_ARGS=(
-    --name "$NAME"
-    --version "$VERSION"
-    --architecture "$ARCH"
-    --maintainer "$MAINTAINER"
-    --url "$URL"
-    --description "$DESCRIPTION"
-    --license "$LICENSE"
-    --after-install "$POSTINSTALL"
-    --after-remove "$POSTINSTALL"
-    -C "$STAGING"
-)
-
 BUILD_WHAT="${1:-all}"
 
-# --- Build RPM ---
-if [[ "$BUILD_WHAT" == "all" || "$BUILD_WHAT" == "rpm" ]]; then
-    echo
-    echo "→ Building RPM..."
-    fpm -s dir -t rpm \
-        "${FPM_ARGS[@]}" \
-        --depends python3 \
-        --depends gtk4 \
-        --depends libadwaita \
-        --depends python3-gobject \
-        --depends polkit \
-        --rpm-summary "$DESCRIPTION" \
-        --package "$OUTDIR/${NAME}-${VERSION}-1.noarch.rpm" \
-        .
+echo "── Fortyfax v${VERSION} — build pacchetti (${BUILD_WHAT}) ──"
 
-    echo "  ✓ $OUTDIR/${NAME}-${VERSION}-1.noarch.rpm"
+# --- RPM ---
+if [[ "$BUILD_WHAT" == "all" || "$BUILD_WHAT" == "rpm" ]]; then
+    command -v rpmbuild >/dev/null || { echo "❌ rpmbuild non trovato (dnf install rpm-build python3-devel desktop-file-utils)"; exit 1; }
+    echo "→ RPM..."
+    RPMTOP=$(mktemp -d)
+    trap 'rm -rf "$RPMTOP"' EXIT
+    mkdir -p "$RPMTOP"/{SOURCES,SPECS}
+    tar czf "$RPMTOP/SOURCES/${NAME}-${VERSION}.tar.gz" \
+        --transform "s,^,${NAME}-${VERSION}/," \
+        --exclude .git --exclude ./dist --exclude '__pycache__' --exclude '*.pyc' \
+        --exclude STEVANATO \
+        .
+    cp packaging/rpm/fortyfax.spec "$RPMTOP/SPECS/"
+    rpmbuild --define "_topdir $RPMTOP" -bb "$RPMTOP/SPECS/fortyfax.spec"
+    cp "$RPMTOP"/RPMS/noarch/${NAME}-${VERSION}-*.noarch.rpm "$OUTDIR/"
+    echo "  ✓ $(ls "$OUTDIR"/${NAME}-${VERSION}-*.noarch.rpm | tail -1)"
 fi
 
-# --- Build DEB ---
+# --- DEB ---
 if [[ "$BUILD_WHAT" == "all" || "$BUILD_WHAT" == "deb" ]]; then
-    echo
-    echo "→ Building DEB..."
-    fpm -s dir -t deb \
-        "${FPM_ARGS[@]}" \
-        --depends python3 \
-        --depends "python3-gi" \
-        --depends "gir1.2-gtk-4.0" \
-        --depends "gir1.2-adw-1" \
-        --depends "polkitd | policykit-1" \
-        --deb-priority optional \
-        --category net \
-        --package "$OUTDIR/${NAME}_${VERSION}_all.deb" \
-        .
-
+    command -v dpkg-buildpackage >/dev/null || { echo "❌ dpkg-buildpackage non trovato (apt install debhelper dpkg-dev)"; exit 1; }
+    echo "→ DEB..."
+    dpkg-buildpackage -us -uc -b
+    mv ../"${NAME}_${VERSION}_all.deb" "$OUTDIR/"
+    rm -f ../"${NAME}_${VERSION}"_*.changes ../"${NAME}_${VERSION}"_*.buildinfo
     echo "  ✓ $OUTDIR/${NAME}_${VERSION}_all.deb"
 fi
 
-echo
-echo "╔══════════════════════════════════════════════════════╗"
-echo "║  ✓ Build completato!                                ║"
-echo "║                                                      ║"
-echo "║  Pacchetti in: dist/                                 ║"
-echo "╚══════════════════════════════════════════════════════╝"
-echo
-ls -lh "$OUTDIR/"*.{rpm,deb} 2>/dev/null
-
-# Cleanup
-rm -f "$POSTINSTALL"
+echo "── Build completato — pacchetti in dist/ ──"
+ls -lh "$OUTDIR"/*"${VERSION}"* 2>/dev/null

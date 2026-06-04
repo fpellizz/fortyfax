@@ -1,0 +1,18 @@
+#!/usr/bin/make -f
+# Build semplice con debhelper: applicazione Python pura installata
+# in /usr/share/fortyfax (vedi debian/install e debian/links).
+
+%:
+	dh $@
+
+# Niente bytecode nel pacchetto (lintian: package-installs-python-pycache-dir)
+override_dh_install:
+	dh_install
+	find debian/fortyfax -name '__pycache__' -type d -exec rm -rf {} +
+	find debian/fortyfax -name '*.pyc' -delete
+
+# I due launcher devono restare eseguibili anche sotto /usr/share
+override_dh_fixperms:
+	dh_fixperms
+	chmod 755 debian/fortyfax/usr/share/fortyfax/fortyfax-bin
+	chmod 755 debian/fortyfax/usr/share/fortyfax/fortyfax-vpn-helper

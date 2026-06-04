@@ -1,0 +1,12 @@
+[Desktop Entry]
+Name=Fortyfax
+Comment=GUI per openfortivpn e GlobalProtect con supporto SAML/SSO
+Comment[en]=GUI for openfortivpn and GlobalProtect with SAML/SSO support
+Exec=fortyfax
+Icon=com.github.fortyfax
+Type=Application
+Terminal=false
+Categories=Network;Security;
+Keywords=VPN;Fortinet;FortiGate;GlobalProtect;PaloAlto;SSL;SAML;SSO;
+StartupNotify=true
+StartupWMClass=com.github.fortyfax

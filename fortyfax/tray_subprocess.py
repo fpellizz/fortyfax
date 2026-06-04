@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Tray icon subprocess using GTK3 + AppIndicator3.
 
 This runs as a separate process to avoid GTK3/GTK4 conflicts.
