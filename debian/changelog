@@ -1,3 +1,9 @@
+fortyfax (2.3.4) unstable; urgency=medium
+
+  * Packaging nativo conforme a Fedora Guidelines e Debian Policy (rpmbuild/dpkg-buildpackage), pyproject.toml, rimossi install.sh/uninstall.sh
+
+ -- Fabio Pellizzaro <fabio.pellizzaro@decisyon.com>  Thu, 04 Jun 2026 11:34:07 +0200
+
 fortyfax (2.3.3) unstable; urgency=medium
 
   * Packaging conforme alla Debian Policy (debian/ nativo, addio fpm).

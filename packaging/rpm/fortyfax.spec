@@ -1,5 +1,5 @@
 Name:           fortyfax
-Version:        2.3.3
+Version:        2.3.4
 Release:        1%{?dist}
 Summary:        GUI for openfortivpn and GlobalProtect with SAML/SSO support
 
@@ -92,6 +92,9 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/com.github.fortyfax.d
 %{_datadir}/icons/hicolor/scalable/apps/com.github.fortyfax.svg
 
 %changelog
+* Thu Jun 04 2026 Fabio Pellizzaro <fabio.pellizzaro@decisyon.com> - 2.3.4-1
+- Packaging nativo conforme a Fedora Guidelines e Debian Policy (rpmbuild/dpkg-buildpackage), pyproject.toml, rimossi install.sh/uninstall.sh
+
 * Wed Jun 03 2026 Fabio Pellizzaro <fabio.pellizzaro@decisyon.com> - 2.3.3-1
 - Packaging conforme alle Fedora Packaging Guidelines (spec nativo, addio fpm)
 - Fix avvio GlobalProtect (helper auto-SIGTERM) e messaggi di errore parlanti
