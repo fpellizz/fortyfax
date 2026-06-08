@@ -1,46 +1,46 @@
-# Packaging di Fortyfax
+# Fortyfax packaging
 
-## Stato attuale
+## Current status
 
-| Formato | Strumento | Sorgente | Validazione | Dove si pubblica |
+| Format | Tool | Source | Validation | Where it is published |
 |---|---|---|---|---|
-| RPM | `rpmbuild` | `packaging/rpm/fortyfax.spec` (Fedora Packaging Guidelines) | `rpmlint` (0 errori, filtri in `fortyfax.rpmlintrc`) | Bitbucket Downloads + GitHub Release |
+| RPM | `rpmbuild` | `packaging/rpm/fortyfax.spec` (Fedora Packaging Guidelines) | `rpmlint` (0 errors, filters in `fortyfax.rpmlintrc`) | Bitbucket Downloads + GitHub Release |
 | DEB | `dpkg-buildpackage` | `debian/` (Debian Policy, debhelper-compat 13) | `lintian --fail-on error` | Bitbucket Downloads + GitHub Release |
 
-- **Versione**: fonte unica `fortyfax/__init__.py`; `build-pkg.sh` verifica l'allineamento con spec e `debian/changelog` e fallisce se divergono. Bump coordinato: `./scripts/bump-version.sh X.Y.Z "nota"`.
-- **CI**: build paralleli su container `fedora:latest` (RPM) e `debian:bookworm` (DEB), sia su Bitbucket Pipelines che su GitHub Actions (release sui tag `v*`).
-- **File condivisi**: desktop file e policy PolicyKit in `data/`, usati da entrambi i packaging.
+- **Version**: single source of truth `fortyfax/__init__.py`; `build-pkg.sh` checks the alignment with the spec and `debian/changelog` and fails if they diverge. Coordinated bump: `./scripts/bump-version.sh X.Y.Z "note"`.
+- **CI**: parallel builds on `fedora:latest` (RPM) and `debian:bookworm` (DEB) containers, both on Bitbucket Pipelines and GitHub Actions (releases on `v*` tags).
+- **Shared files**: desktop file and PolicyKit policy in `data/`, used by both packaging flows.
 
-## Valutazione OpenSUSE Build Service (OBS)
+## OpenSUSE Build Service (OBS) evaluation
 
-### Cos'è
+### What it is
 
-[OBS](https://build.opensuse.org) è il servizio di build pubblico di openSUSE: da un'unica sorgente builda pacchetti per **molte distro e architetture** (openSUSE Tumbleweed/Leap, Fedora, RHEL/EPEL, Debian, Ubuntu, Arch...) e pubblica **repository installabili** che gli utenti aggiungono a zypper/dnf/apt — con aggiornamenti automatici a ogni release, senza scaricare file a mano.
+[OBS](https://build.opensuse.org) is openSUSE's public build service: from a single source it builds packages for **many distros and architectures** (openSUSE Tumbleweed/Leap, Fedora, RHEL/EPEL, Debian, Ubuntu, Arch...) and publishes **installable repositories** that users add to zypper/dnf/apt — with automatic updates on every release, without downloading files by hand.
 
-### Pro
+### Pros
 
-- **Repository per gli utenti**: `dnf config-manager addrepo ...` una volta sola, poi gli aggiornamenti arrivano col sistema. Esperienza molto migliore del download manuale da Downloads/Release.
-- **Copertura openSUSE**: oggi non offriamo nulla per zypper; OBS la aggiunge quasi gratis.
-- **Multi-versione**: builda per Fedora N, N-1, Leap, Tumbleweed, ecc. in parallelo — intercetta rotture su distro che non testiamo (es. rinomini di pacchetti).
-- **Sorgenti dal mirror GitHub**: il servizio `obs_scm` può scaricare i sorgenti dal mirror pubblico `github.com/fpellizz/fortyfax` a ogni tag — nessun cambiamento al flusso Bitbucket.
-- **Lo spec c'è già**: il grosso del lavoro (questo repo) è fatto. Servono solo ritocchi condizionali (vedi sotto).
+- **Repository for users**: `dnf config-manager addrepo ...` once, then updates arrive with the system. A much better experience than manually downloading from Downloads/Release.
+- **openSUSE coverage**: today we offer nothing for zypper; OBS adds it almost for free.
+- **Multi-version**: builds for Fedora N, N-1, Leap, Tumbleweed, etc. in parallel — catches breakages on distros we don't test (e.g. package renames).
+- **Sources from the GitHub mirror**: the `obs_scm` service can fetch sources from the public mirror `github.com/fpellizz/fortyfax` on every tag — no change to the Bitbucket flow.
+- **The spec already exists**: the bulk of the work (this repo) is done. Only conditional tweaks are needed (see below).
 
-### Contro
+### Cons
 
-- **Un sistema in più da mantenere**: account openSUSE, progetto `home:fpellizz:fortyfax`, monitoraggio build (le distro target cambiano nel tempo).
-- **Nomi dei pacchetti divergenti**: lo spec attuale usa nomi Fedora (`python3-gobject`, `webkitgtk6.0`, `libadwaita`); su openSUSE servono i provides `typelib(Gtk) = 4.0`-style o nomi diversi → lo spec va condizionato con `%if 0%{?suse_version}`.
-- **DEB su OBS è più macchinoso**: richiede `.dsc` + `debian.tar.gz` separati e regole proprie; visto che i DEB li produciamo già bene in CI, conviene **non** usare OBS per i deb (almeno all'inizio).
-- **gpclient non esiste in nessuna distro**: resta `Suggests`, l'utente GlobalProtect deve comunque aggiungere COPR/PPA — OBS non risolve questo.
+- **One more system to maintain**: openSUSE account, `home:fpellizz:fortyfax` project, build monitoring (the target distros change over time).
+- **Divergent package names**: the current spec uses Fedora names (`python3-gobject`, `webkitgtk6.0`, `libadwaita`); on openSUSE the `typelib(Gtk) = 4.0`-style provides or different names are needed → the spec must be conditionalized with `%if 0%{?suse_version}`.
+- **DEB on OBS is more cumbersome**: it requires separate `.dsc` + `debian.tar.gz` and its own rules; since we already produce DEBs well in CI, it's better **not** to use OBS for the debs (at least at the beginning).
+- **gpclient does not exist in any distro**: it stays a `Suggests`, the GlobalProtect user still has to add COPR/PPA — OBS does not solve this.
 
-### Raccomandazione
+### Recommendation
 
-**Sì, ma con scope ridotto**: progetto OBS `home:fpellizz:fortyfax` con target **openSUSE Tumbleweed + Leap 15.6 + Fedora (ultime 2)**, solo RPM. I DEB restano alla CI esistente. Effort stimato: mezza giornata per il setup iniziale, poi ~zero (i tag arrivano da soli via `obs_scm` dal mirror).
+**Yes, but with a reduced scope**: an OBS project `home:fpellizz:fortyfax` with targets **openSUSE Tumbleweed + Leap 15.6 + Fedora (last 2)**, RPM only. The DEBs stay with the existing CI. Estimated effort: half a day for the initial setup, then ~zero (tags come in on their own via `obs_scm` from the mirror).
 
-### Setup (quando si decide di farlo)
+### Setup (when it's decided to do it)
 
-1. Account su https://idp-portal.suse.com → https://build.opensuse.org
-2. `osc meta pkg home:fpellizz:fortyfax fortyfax -e` (o dalla web UI)
-3. File `_service` nel package OBS:
+1. Account on https://idp-portal.suse.com → https://build.opensuse.org
+2. `osc meta pkg home:fpellizz:fortyfax fortyfax -e` (or from the web UI)
+3. `_service` file in the OBS package:
 
 ```xml
 <services>
@@ -59,7 +59,7 @@
 </services>
 ```
 
-4. Copia di `packaging/rpm/fortyfax.spec` con le dipendenze condizionate:
+4. Copy of `packaging/rpm/fortyfax.spec` with conditionalized dependencies:
 
 ```spec
 %if 0%{?suse_version}
@@ -77,8 +77,8 @@ Requires:       libsecret
 %endif
 ```
 
-5. Target nel progetto: `openSUSE_Tumbleweed`, `15.6`, `Fedora_43`, `Fedora_42`
-6. Repo per gli utenti (esempio):
+5. Targets in the project: `openSUSE_Tumbleweed`, `15.6`, `Fedora_43`, `Fedora_42`
+6. Repo for users (example):
    ```bash
    # openSUSE
    zypper addrepo https://download.opensuse.org/repositories/home:fpellizz:fortyfax/openSUSE_Tumbleweed/home:fpellizz:fortyfax.repo
