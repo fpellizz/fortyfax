@@ -26,6 +26,10 @@ class VPNProfile:
     half_internet_routes: bool = False
     sso_username: str = ""
     extra_args: str = ""
+    # Fortinet two-factor authentication (FortiToken)
+    no_ftm_push: bool = False  # force manual OTP instead of push to the mobile app
+    otp_prompt: str = ""  # custom prompt string to look for (--otp-prompt)
+    otp_delay: int = 0  # seconds to wait before sending the OTP (--otp-delay)
     vpn_type: str = "fortinet"  # "fortinet", "globalprotect"
     # GlobalProtect-specific fields
     gp_gateway: str = ""
@@ -50,6 +54,8 @@ class VPNProfile:
         args = [f"{self.host}:{self.port}"]
         if self.username and self.auth_method == "password":
             args += ["-u", self.username]
+        if self.realm:
+            args += ["--realm", self.realm]
         if self.trusted_cert:
             args += ["--trusted-cert", self.trusted_cert]
         if not self.set_routes:
@@ -62,6 +68,16 @@ class VPNProfile:
             args.append("--half-internet-routes")
         if cookie:
             args += ["--cookie-on-stdin"]
+        else:
+            # 2FA: only relevant when authenticating with username/password.
+            # With a SAML cookie the second factor is already handled in the
+            # browser, so these options would be ignored (or rejected).
+            if self.no_ftm_push:
+                args.append("--no-ftm-push")
+            if self.otp_prompt:
+                args += ["--otp-prompt", self.otp_prompt]
+            if self.otp_delay > 0:
+                args += ["--otp-delay", str(self.otp_delay)]
         if self.extra_args:
             args += self.extra_args.split()
         return args

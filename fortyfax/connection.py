@@ -37,6 +37,8 @@ _ERROR_RULES: list[tuple[re.Pattern, str]] = [
         r"|gp response error.*status=51[23]",
         re.I),
      "Credenziali errate: nome utente o password non validi"),
+    (re.compile(r"no (token|otp) specified", re.I),
+     "Token 2FA non inserito: la connessione richiede il codice FortiToken"),
     (re.compile(r"two.?factor|second factor|otp token", re.I),
      "Il server richiede un secondo fattore di autenticazione (2FA)"),
     # Risoluzione nome / DNS
@@ -69,6 +71,42 @@ _ERROR_RULES: list[tuple[re.Pattern, str]] = [
     (re.compile(r"failed to (open|launch|spawn).*browser|browser.*not found", re.I),
      "Impossibile aprire il browser per il login SSO"),
 ]
+
+# --- Prompt interattivi di openfortivpn ------------------------------------
+# openfortivpn stampa il prompt del secondo fattore SENZA newline finale e poi
+# legge da stdin: va quindi riconosciuto sul buffer parziale, non su una riga
+# completa. Il testo puo' arrivare dal server (opzione --otp-prompt), percio'
+# le regole sono volutamente larghe.
+_TOKEN_PROMPT_RULES: list[re.Pattern] = [
+    re.compile(r"two.?factor authentication token\s*:\s*$", re.I),
+    re.compile(r"one.?time password\s*:\s*$", re.I),
+    re.compile(r"\b(otp|token|passcode|verification code|security code|codice)\b"
+               r"[^:]{0,30}:\s*$", re.I),
+]
+
+# Prompt della password dell'account: la password viene gia' inviata su stdin
+# alla partenza, quindi non va scambiato per una richiesta di token. Ancorato
+# all'inizio, altrimenti "one-time password:" finirebbe qui dentro.
+_PASSWORD_PROMPT_RE = re.compile(r"^(vpn account |pem |user )?password\s*:\s*$", re.I)
+
+# Le righe di log hanno sempre un prefisso di livello, i prompt interattivi no.
+# Senza questo filtro una riga come "DEBUG:  Configuration token: xyz" verrebbe
+# scambiata per un prompt nell'istante in cui il buffer si ferma sui due punti.
+_LOG_PREFIX_RE = re.compile(r"^(DEBUG|INFO|WARN|WARNING|ERROR|TRACE|FATAL)\s*:", re.I)
+
+
+def _is_token_prompt(buf: str) -> bool:
+    """True se il buffer parziale e' una richiesta di token 2FA."""
+    tail = buf.strip()
+    if not tail or len(tail) > 200:
+        return False
+    if _LOG_PREFIX_RE.match(tail) or _PASSWORD_PROMPT_RE.search(tail):
+        return False
+    return any(rx.search(tail) for rx in _TOKEN_PROMPT_RULES)
+
+
+# Tempo massimo di attesa per l'inserimento del token 2FA (secondi)
+_TOKEN_TIMEOUT_S = 180
 
 # Codici di uscita noti (pkexec / segnali)
 _EXIT_CODE_MESSAGES = {
@@ -123,7 +161,10 @@ class VPNConnection:
         self._log_lines: list[str] = []
         self._on_state_changed: Callable[[ConnectionState, str], None] | None = None
         self._on_log_line: Callable[[str], None] | None = None
+        self._on_token_request: Callable[[str], None] | None = None
         self._lock = threading.Lock()
+        self._token_pending = False
+        self._token_timer: threading.Timer | None = None
 
     @property
     def state(self) -> ConnectionState:
@@ -137,9 +178,11 @@ class VPNConnection:
         self,
         on_state_changed: Callable[[ConnectionState, str], None] | None = None,
         on_log_line: Callable[[str], None] | None = None,
+        on_token_request: Callable[[str], None] | None = None,
     ):
         self._on_state_changed = on_state_changed
         self._on_log_line = on_log_line
+        self._on_token_request = on_token_request
 
     def _set_state(self, state: ConnectionState, message: str = ""):
         self._state = state
@@ -201,14 +244,21 @@ class VPNConnection:
                     env={**os.environ, "LANG": "C"},
                 )
 
+                self._token_pending = False
+
                 if cookie:
+                    # With a SAML cookie stdin is only used to hand it over:
+                    # authentication is already complete, nothing else to send.
                     self._process.stdin.write(cookie + "\n")
                     self._process.stdin.flush()
                     self._process.stdin.close()
                 elif password:
+                    # Keep stdin OPEN: after the password the gateway may ask
+                    # for a second factor (FortiToken), which is written to the
+                    # same pipe by send_token(). Closing it here makes
+                    # openfortivpn read EOF and give up with "No token specified".
                     self._process.stdin.write(password + "\n")
                     self._process.stdin.flush()
-                    self._process.stdin.close()
 
             except FileNotFoundError as e:
                 self._set_state(ConnectionState.ERROR, f"Comando non trovato: {e}")
@@ -223,34 +273,125 @@ class VPNConnection:
             self._monitor_thread.start()
             return True
 
+    def _handle_fortinet_line(self, line: str):
+        """Interpreta una riga completa di output di openfortivpn."""
+        self._append_log(line)
+
+        # Solo "Tunnel is up and running" segnala il tunnel attivo: la riga
+        # "Connected to gateway." arriva PRIMA dell'autenticazione (e quindi
+        # prima dell'eventuale token 2FA), non va scambiata per successo.
+        if "Tunnel is up and running" in line:
+            self._set_state(ConnectionState.CONNECTED, "Tunnel attivo")
+
+        if "Gateway certificate:" in line or "server certificate" in line.lower():
+            self._append_log("[INFO] Certificato del server rilevato nel log")
+
+        if "ERROR" in line:
+            if self._state == ConnectionState.CONNECTING:
+                self._set_state(
+                    ConnectionState.ERROR,
+                    _interpret_error_line(line) or line,
+                )
+
+    def _request_token(self, prompt: str):
+        """Propaga alla GUI la richiesta di token 2FA."""
+        self._append_log(f"[INFO] Il gateway richiede un token 2FA: {prompt}")
+        if self._on_token_request is None:
+            self._append_log(
+                "[ERRORE] Nessun gestore per il token 2FA: connessione destinata a fallire"
+            )
+            return
+        self._token_pending = True
+        self._set_state(
+            ConnectionState.CONNECTING,
+            "Autenticazione a due fattori richiesta",
+        )
+        # Senza risposta openfortivpn resterebbe bloccato per sempre sulla
+        # lettura di stdin (che ora teniamo aperto): dopo il timeout la
+        # connessione viene chiusa invece di lasciare un processo appeso.
+        self._cancel_token_timer()
+        self._token_timer = threading.Timer(_TOKEN_TIMEOUT_S, self._on_token_timeout)
+        self._token_timer.daemon = True
+        self._token_timer.start()
+        self._on_token_request(prompt)
+
+    def _cancel_token_timer(self):
+        if self._token_timer is not None:
+            self._token_timer.cancel()
+            self._token_timer = None
+
+    def _on_token_timeout(self):
+        if not self._token_pending:
+            return
+        self._token_pending = False
+        self._append_log(
+            f"[ERRORE] Token 2FA non inserito entro {_TOKEN_TIMEOUT_S} secondi"
+        )
+        self._set_state(ConnectionState.ERROR, "Token 2FA non inserito entro il tempo limite")
+        self.disconnect()
+
+    def send_token(self, token: str) -> bool:
+        """Invia il token 2FA a openfortivpn. Chiamato dalla GUI."""
+        proc = self._process
+        if proc is None or proc.stdin is None or proc.stdin.closed:
+            self._append_log("[ERRORE] Token non inviabile: processo VPN non attivo")
+            return False
+        try:
+            proc.stdin.write(token + "\n")
+            proc.stdin.flush()
+        except (BrokenPipeError, OSError, ValueError) as e:
+            self._append_log(f"[ERRORE] Invio del token fallito: {e}")
+            return False
+        self._token_pending = False
+        self._cancel_token_timer()
+        self._append_log("[INFO] Token 2FA inviato, verifica in corso")
+        self._set_state(ConnectionState.CONNECTING, "Token inviato, verifica in corso...")
+        return True
+
+    def cancel_token(self):
+        """L'utente ha annullato l'inserimento del token: chiude la connessione."""
+        self._token_pending = False
+        self._cancel_token_timer()
+        self._append_log("[INFO] Inserimento del token annullato dall'utente")
+        self.disconnect()
+
     def _monitor_fortinet(self):
-        """Monitor openfortivpn output in background thread."""
+        """Monitor openfortivpn output in background thread.
+
+        L'output viene letto carattere per carattere e non riga per riga: i
+        prompt interattivi (token 2FA) sono stampati SENZA newline finale e
+        con una lettura a righe resterebbero bloccati nel buffer, invisibili
+        sia all'utente sia al log.
+        """
         proc = self._process
         if proc is None or proc.stdout is None:
             return
 
         try:
-            for line in proc.stdout:
-                line = line.rstrip("\n")
-                self._append_log(line)
-
-                if "Tunnel is up and running" in line or "Connected" in line:
-                    self._set_state(ConnectionState.CONNECTED, "Tunnel attivo")
-
-                if "Gateway certificate:" in line or "server certificate" in line.lower():
-                    self._append_log("[INFO] Certificato del server rilevato nel log")
-
-                if "ERROR" in line:
-                    if self._state == ConnectionState.CONNECTING:
-                        self._set_state(
-                            ConnectionState.ERROR,
-                            _interpret_error_line(line) or line,
-                        )
+            buf = ""
+            while True:
+                ch = proc.stdout.read(1)
+                if not ch:  # EOF
+                    if buf.strip():
+                        self._handle_fortinet_line(buf)
+                    break
+                if ch == "\n":
+                    self._handle_fortinet_line(buf)
+                    buf = ""
+                elif ch == "\r":
+                    continue
+                else:
+                    buf += ch
+                    if _is_token_prompt(buf):
+                        self._request_token(buf.strip())
+                        buf = ""
 
         except Exception as e:
             self._append_log(f"[ERRORE monitor] {e}")
         finally:
             retcode = proc.wait()
+            self._cancel_token_timer()
+            self._token_pending = False
             self._append_log(f"[openfortivpn terminato con codice {retcode}]")
 
             if self._state == ConnectionState.DISCONNECTING:

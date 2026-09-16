@@ -208,6 +208,33 @@ class ProfileEditorDialog(Adw.Dialog):
 
         main_box.append(self._gp_group)
 
+        # --- Two-factor authentication group (Fortinet only) ---
+        self._2fa_group = Adw.PreferencesGroup(
+            title="Autenticazione a due fattori",
+            description="Opzioni per FortiToken / OTP. Il codice viene chiesto "
+                        "automaticamente quando il gateway lo richiede.",
+        )
+
+        self._no_ftm_push_switch = Adw.SwitchRow(
+            title="Disabilita FTM push",
+            subtitle="Chiedi il codice invece della notifica push su FortiToken Mobile",
+        )
+        self._2fa_group.add(self._no_ftm_push_switch)
+
+        self._otp_prompt_row = Adw.EntryRow(title="Prompt OTP (opzionale)")
+        self._2fa_group.add(self._otp_prompt_row)
+
+        self._otp_delay_adj = Gtk.Adjustment(value=0, lower=0, upper=120, step_increment=1)
+        self._otp_delay_row = Adw.SpinRow(
+            title="Ritardo invio OTP (secondi)",
+            adjustment=self._otp_delay_adj,
+            climb_rate=1,
+            digits=0,
+        )
+        self._2fa_group.add(self._otp_delay_row)
+
+        main_box.append(self._2fa_group)
+
         # --- Advanced group ---
         advanced_group = Adw.PreferencesGroup(title="Avanzate")
 
@@ -235,6 +262,9 @@ class ProfileEditorDialog(Adw.Dialog):
         self._dns_switch.set_active(p.set_dns)
         self._peerdns_switch.set_active(p.pppd_use_peerdns)
         self._half_routes_switch.set_active(p.half_internet_routes)
+        self._no_ftm_push_switch.set_active(p.no_ftm_push)
+        self._otp_prompt_row.set_text(p.otp_prompt)
+        self._otp_delay_adj.set_value(p.otp_delay)
         self._extra_args_row.set_text(p.extra_args)
 
         # VPN type
@@ -304,6 +334,9 @@ class ProfileEditorDialog(Adw.Dialog):
             )
         # Realm only for Fortinet
         self._realm_row.set_visible(not is_gp)
+        # 2FA only for Fortinet with username/password: with SAML the second
+        # factor is handled inside the browser login.
+        self._2fa_group.set_visible(not is_gp and not is_saml)
 
     def _on_save(self, button):
         p = self._profile
@@ -319,6 +352,9 @@ class ProfileEditorDialog(Adw.Dialog):
         p.set_dns = self._dns_switch.get_active()
         p.pppd_use_peerdns = self._peerdns_switch.get_active()
         p.half_internet_routes = self._half_routes_switch.get_active()
+        p.no_ftm_push = self._no_ftm_push_switch.get_active()
+        p.otp_prompt = self._otp_prompt_row.get_text().strip()
+        p.otp_delay = int(self._otp_delay_adj.get_value())
         p.extra_args = self._extra_args_row.get_text().strip()
 
         # Username and password go to the right fields based on auth method
@@ -391,6 +427,35 @@ class PasswordDialog(Adw.AlertDialog):
     @property
     def password(self) -> str:
         return self._password_entry.get_text()
+
+
+class TokenDialog(Adw.AlertDialog):
+    """Dialog to ask for the 2FA token (FortiToken / OTP)."""
+
+    def __init__(self, prompt: str = "", **kwargs):
+        super().__init__(
+            heading="Autenticazione a due fattori",
+            body=prompt.strip() or "Inserisci il codice generato dall'app FortiToken.",
+            **kwargs,
+        )
+        self.add_response("cancel", "Annulla")
+        self.add_response("send", "Invia")
+        self.set_response_appearance("send", Adw.ResponseAppearance.SUGGESTED)
+        self.set_default_response("send")
+        self.set_close_response("cancel")
+
+        self._token_entry = Gtk.Entry(
+            placeholder_text="Codice",
+            input_purpose=Gtk.InputPurpose.DIGITS,
+            max_length=32,
+            activates_default=True,
+        )
+        self._token_entry.set_margin_top(12)
+        self.set_extra_child(self._token_entry)
+
+    @property
+    def token(self) -> str:
+        return self._token_entry.get_text().strip()
 
 
 class PreferencesDialog(Adw.PreferencesDialog):
