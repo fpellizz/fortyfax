@@ -11,7 +11,7 @@ from gi.repository import Adw, Gio, GLib, Gtk, Pango
 
 from . import __app_name__, __version__
 from .connection import ConnectionState, VPNConnection
-from .dialogs import LogDialog, PasswordDialog, ProfileEditorDialog
+from .dialogs import LogDialog, PasswordDialog, ProfileEditorDialog, TokenDialog
 from .profile import ProfileManager, VPNProfile
 
 log = logging.getLogger(__name__)
@@ -32,6 +32,7 @@ class MainWindow(Adw.ApplicationWindow):
         self._connection.set_callbacks(
             on_state_changed=self._on_vpn_state_changed,
             on_log_line=self._on_vpn_log_line,
+            on_token_request=self._on_vpn_token_request,
         )
         self._active_profile: VPNProfile | None = None
         self._log_dialog: LogDialog | None = None
@@ -438,6 +439,34 @@ class MainWindow(Adw.ApplicationWindow):
 
     def _on_vpn_log_line(self, line: str):
         GLib.idle_add(self._append_log_line, line)
+
+    def _on_vpn_token_request(self, prompt: str):
+        """Il gateway chiede il token 2FA (chiamato dal thread di monitor)."""
+        GLib.idle_add(self._show_token_dialog, prompt)
+
+    def _show_token_dialog(self, prompt: str):
+        # La finestra puo' essere nascosta nel tray: senza riportarla in primo
+        # piano il dialogo resterebbe invisibile e il token non arriverebbe mai.
+        if not self.get_visible():
+            self.set_visible(True)
+        self.present()
+        self._send_notification(
+            "Token VPN richiesto",
+            "Inserisci il codice FortiToken per completare la connessione",
+            "dialog-password-symbolic",
+        )
+
+        dialog = TokenDialog(prompt=prompt)
+        dialog.connect("response", self._on_token_response)
+        dialog.present(self)
+        return False  # remove idle callback
+
+    def _on_token_response(self, dialog, response):
+        token = dialog.token if response == "send" else ""
+        if token:
+            self._connection.send_token(token)
+        else:
+            self._connection.cancel_token()
 
     def _update_ui_state(self, state: ConnectionState, message: str):
         if state == ConnectionState.DISCONNECTED:
