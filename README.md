@@ -34,6 +34,7 @@ Main features:
 - **Desktop notifications** for connection, disconnection and errors (GNOME and KDE)
 - **DNS watchdog** for GlobalProtect: keeps the correct DNS configuration on the VPN interface
 - **Real-time logging** of the VPN connection
+- **Update notifications**: checks the GitHub releases and downloads the package for your distro
 - **Prerequisite check** with explanatory error messages and fix instructions
 
 ## Screenshots
@@ -309,6 +310,25 @@ leaving a stuck process behind.
 - **Disable DTLS**: forces TCP for more stable connections
 - **OpenSSL legacy fix**: compatibility with older VPN servers
 
+### Updates
+
+Fortyfax checks its own [GitHub releases](https://github.com/fpellizz/fortyfax/releases)
+at startup, at most once a day, and shows a banner when a newer version is available.
+The check is anonymous: a single unauthenticated GET to the public GitHub API, no data
+about you or your profiles leaves the machine. A failure (no network, rate limit) is
+logged and ignored.
+
+From the update dialog you can:
+
+- **Download**: fetches the package matching your distro (`.rpm` on Fedora/RHEL, `.deb`
+  on Debian/Ubuntu) into your downloads directory, then shows the install command to
+  run. Fortyfax never installs anything by itself.
+- **Skip this version**: no more automatic reminders for that release
+- **Later**: the banner stays, the reminder comes back on the next check
+
+Automatic checking can be turned off in **Preferences > Updates**; **Menu > Check for
+updates** always runs a check on demand and reports the result either way.
+
 ### Saved credentials
 
 For any profile (SAML/SSO or Password), username and password can be saved directly in the profile editor:
@@ -391,11 +411,12 @@ fortyfax/
     ├── credential_store.py    # Credential storage via libsecret (legacy, compatibility)
     ├── distro.py              # Linux distro detection and package name mapping
     ├── crypto.py              # Local VPN password encryption (PBKDF2 + salt)
-    ├── dialogs.py             # Dialogs: profile editor, password, log viewer, preferences
+    ├── dialogs.py             # Dialogs: profile editor, password, 2FA token, updates, log, preferences
     ├── profile.py             # Profile data model + JSON persistence
     ├── settings.py            # Application settings (theme, JSON persistence)
     ├── tray.py                # Tray icon proxy (launches a GTK3 sub-process)
     ├── tray_subprocess.py     # GTK3 + AppIndicator3 sub-process for the tray
+    ├── updates.py             # Update check against the GitHub releases + package download
     └── window.py              # Main window (profile list, status)
 ```
 

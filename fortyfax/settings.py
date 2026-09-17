@@ -24,6 +24,9 @@ _DEFAULTS = {
     "theme": "system",
     "notifications": True,
     "sso_browser": "auto",  # "auto", "chrome", "edge", "xdg-open"
+    "check_updates": True,  # check GitHub releases at startup
+    "last_update_check": 0,  # epoch seconds of the last automatic check
+    "skipped_version": "",  # version the user chose not to be reminded about
 }
 
 
