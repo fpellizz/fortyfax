@@ -1,6 +1,8 @@
 """Main application window."""
 
 import logging
+import threading
+import time
 
 import gi
 
@@ -11,7 +13,14 @@ from gi.repository import Adw, Gio, GLib, Gtk, Pango
 
 from . import __app_name__, __version__
 from .connection import ConnectionState, VPNConnection
-from .dialogs import LogDialog, PasswordDialog, ProfileEditorDialog, TokenDialog
+from .dialogs import (
+    LogDialog,
+    PasswordDialog,
+    ProfileEditorDialog,
+    TokenDialog,
+    UpdateDialog,
+    UpdateReadyDialog,
+)
 from .profile import ProfileManager, VPNProfile
 
 log = logging.getLogger(__name__)
@@ -39,6 +48,9 @@ class MainWindow(Adw.ApplicationWindow):
 
         self._build_ui()
         self._refresh_profile_list()
+
+        self._pending_release = None
+        self._maybe_check_updates()
 
     def _build_ui(self):
         # Main layout
@@ -72,6 +84,11 @@ class MainWindow(Adw.ApplicationWindow):
 
         # Content
         content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+
+        # Update banner (persistent, with its own action button)
+        self._update_banner = Adw.Banner(revealed=False, button_label="Dettagli")
+        self._update_banner.connect("button-clicked", self._on_update_banner_clicked)
+        content.append(self._update_banner)
 
         # Status banner
         self._status_banner = Adw.Banner(revealed=False)
@@ -159,6 +176,7 @@ class MainWindow(Adw.ApplicationWindow):
         menu.append_section(None, profiles_section)
 
         menu.append("Verifica prerequisiti", "app.check-deps")
+        menu.append("Controlla aggiornamenti", "app.check-updates")
         menu.append("Informazioni", "app.about")
         return menu
 
@@ -543,6 +561,148 @@ class MainWindow(Adw.ApplicationWindow):
     def _on_log_closed(self, dialog):
         self._log_dialog = None
 
+    # --- Aggiornamenti ---
+
+    def _maybe_check_updates(self):
+        """Controllo automatico all'avvio, al massimo una volta al giorno."""
+        from . import settings, updates
+
+        if not settings.get("check_updates"):
+            return
+        if not updates.should_check_now(settings.get("last_update_check") or 0):
+            return
+        self._start_update_check(manual=False)
+
+    def check_updates_now(self):
+        """Controllo manuale, dalla voce di menu: riferisce sempre l'esito."""
+        self._start_update_check(manual=True)
+
+    def _start_update_check(self, manual: bool):
+        threading.Thread(
+            target=self._update_check_worker,
+            args=(manual,),
+            daemon=True,
+            name="update-check",
+        ).start()
+
+    def _update_check_worker(self, manual: bool):
+        from . import settings, updates
+
+        release = updates.check_for_update()
+        # Il timestamp si aggiorna anche quando non ci sono novita': serve a
+        # non reinterrogare GitHub a ogni avvio.
+        settings.set("last_update_check", time.time())
+        GLib.idle_add(self._on_update_check_done, release, manual)
+
+    def _on_update_check_done(self, release, manual: bool):
+        from . import settings
+
+        if release is None:
+            if manual:
+                self._show_info(
+                    "Nessun aggiornamento",
+                    f"Fortyfax {__version__} è già la versione più recente.",
+                )
+            return False
+
+        # "Salta questa versione" vale solo per i controlli automatici: se
+        # l'utente chiede esplicitamente, la risposta gli va data comunque.
+        if not manual and settings.get("skipped_version") == release.version:
+            return False
+
+        self._pending_release = release
+        self._update_banner.set_title(f"Fortyfax {release.version} è disponibile")
+        self._update_banner.set_button_label("Dettagli")
+        self._update_banner.set_revealed(True)
+        self._send_notification(
+            "Aggiornamento disponibile",
+            f"Fortyfax {release.version} è disponibile",
+            "software-update-available-symbolic",
+        )
+        self._show_update_dialog(release)
+        return False
+
+    def _on_update_banner_clicked(self, banner):
+        if self._pending_release is not None:
+            self._show_update_dialog(self._pending_release)
+
+    def _show_update_dialog(self, release):
+        dialog = UpdateDialog(release=release, current_version=__version__)
+        dialog.connect("response", self._on_update_response, release)
+        dialog.present(self)
+
+    def _on_update_response(self, dialog, response, release):
+        from . import settings
+
+        if response == "skip":
+            settings.set("skipped_version", release.version)
+            self._update_banner.set_revealed(False)
+            self._pending_release = None
+        elif response == "open":
+            Gtk.UriLauncher(uri=release.url).launch(self, None, None)
+        elif response == "download":
+            self._start_download(release)
+
+    def _start_download(self, release):
+        self._update_banner.set_title(f"Download di Fortyfax {release.version} in corso…")
+        self._update_banner.set_button_label("")
+        self._update_banner.set_revealed(True)
+        threading.Thread(
+            target=self._download_worker,
+            args=(release,),
+            daemon=True,
+            name="update-download",
+        ).start()
+
+    def _download_worker(self, release):
+        from . import updates
+
+        def progress(done, total):
+            if total:
+                GLib.idle_add(self._on_download_progress, release, done * 100 // total)
+
+        try:
+            path = updates.download_asset(release, progress=progress)
+        except Exception as e:
+            log.warning("Download dell'aggiornamento fallito: %s", e)
+            GLib.idle_add(self._on_download_failed, release, str(e))
+            return
+        GLib.idle_add(self._on_download_done, release, path)
+
+    def _on_download_progress(self, release, percent: int):
+        self._update_banner.set_title(
+            f"Download di Fortyfax {release.version}: {percent}%"
+        )
+        return False
+
+    def _on_download_failed(self, release, message: str):
+        self._update_banner.set_title(f"Fortyfax {release.version} è disponibile")
+        self._update_banner.set_button_label("Dettagli")
+        self._show_error(
+            "Download non riuscito",
+            f"Impossibile scaricare il pacchetto: {message}\n\n"
+            f"Puoi scaricarlo manualmente da:\n{release.url}",
+        )
+        return False
+
+    def _on_download_done(self, release, path):
+        from . import updates
+
+        self._update_banner.set_revealed(False)
+        self._pending_release = None
+        command = updates.install_command(path)
+        dialog = UpdateReadyDialog(package_path=path, command=command)
+        dialog.connect("response", self._on_update_ready_response)
+        dialog.present(self)
+        return False
+
+    def _on_update_ready_response(self, dialog, response):
+        if response == "copy":
+            self.get_clipboard().set(dialog.command)
+            self._status_banner.set_title("Comando copiato negli appunti")
+            self._status_banner.set_revealed(True)
+            GLib.timeout_add_seconds(3, lambda: self._status_banner.set_revealed(False))
+
     # --- Helpers ---
 
     def _send_notification(self, title: str, body: str, icon_name: str):
@@ -551,6 +711,11 @@ class MainWindow(Adw.ApplicationWindow):
             app.send_vpn_notification(title, body, icon_name)
 
     def _show_error(self, heading: str, body: str):
+        dialog = Adw.AlertDialog(heading=heading, body=body)
+        dialog.add_response("ok", "OK")
+        dialog.present(self)
+
+    def _show_info(self, heading: str, body: str):
         dialog = Adw.AlertDialog(heading=heading, body=body)
         dialog.add_response("ok", "OK")
         dialog.present(self)

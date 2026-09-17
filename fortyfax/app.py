@@ -79,6 +79,7 @@ class FortyfaxApp(Adw.Application):
             "import-profiles": self._on_import_profiles,
             "about": self._on_about,
             "check-deps": self._on_check_deps,
+            "check-updates": self._on_check_updates,
             "quit": self._on_quit,
         }
         for name, callback in actions.items():
@@ -89,6 +90,10 @@ class FortyfaxApp(Adw.Application):
         # Keyboard shortcuts
         self.set_accels_for_action("app.quit", ["<primary>q"])
         self.set_accels_for_action("app.preferences", ["<primary>comma"])
+
+    def _on_check_updates(self, action, param):
+        if self._window is not None:
+            self._window.check_updates_now()
 
     def _on_preferences(self, action, param):
         from .dialogs import PreferencesDialog

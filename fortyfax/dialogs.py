@@ -5,7 +5,7 @@ import gi
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 
-from gi.repository import Adw, Gtk
+from gi.repository import Adw, Gtk, Pango
 
 from .profile import VPNProfile
 from . import settings
@@ -458,6 +458,100 @@ class TokenDialog(Adw.AlertDialog):
         return self._token_entry.get_text().strip()
 
 
+class UpdateDialog(Adw.AlertDialog):
+    """Dialog announcing a new release available on GitHub."""
+
+    def __init__(self, release, current_version: str, **kwargs):
+        body = (
+            f"È disponibile Fortyfax {release.version} "
+            f"(versione installata: {current_version})."
+        )
+        super().__init__(heading="Aggiornamento disponibile", body=body, **kwargs)
+
+        self.add_response("later", "Più tardi")
+        self.add_response("skip", "Salta questa versione")
+        if release.asset_name:
+            self.add_response("download", "Scarica")
+            self.set_response_appearance("download", Adw.ResponseAppearance.SUGGESTED)
+            self.set_default_response("download")
+        else:
+            # Nessun pacchetto per questa distro: resta l'apertura della pagina.
+            self.add_response("open", "Apri la pagina")
+            self.set_response_appearance("open", Adw.ResponseAppearance.SUGGESTED)
+            self.set_default_response("open")
+        self.set_close_response("later")
+
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8, margin_top=12)
+
+        notes = release.notes.strip()
+        if notes:
+            notes_view = Gtk.Label(
+                label=notes,
+                xalign=0,
+                wrap=True,
+                wrap_mode=Pango.WrapMode.WORD_CHAR,
+                selectable=True,
+            )
+            notes_view.add_css_class("dim-label")
+            scrolled = Gtk.ScrolledWindow(
+                hscrollbar_policy=Gtk.PolicyType.NEVER,
+                min_content_height=90,
+                max_content_height=220,
+                propagate_natural_height=True,
+            )
+            scrolled.set_child(notes_view)
+            scrolled.add_css_class("card")
+            box.append(scrolled)
+
+        if release.asset_name:
+            size_mb = release.asset_size / (1024 * 1024) if release.asset_size else 0
+            detail = release.asset_name + (f" — {size_mb:.1f} MB" if size_mb else "")
+            asset_label = Gtk.Label(label=detail, xalign=0, wrap=True)
+            asset_label.add_css_class("caption")
+            asset_label.add_css_class("dim-label")
+            box.append(asset_label)
+
+        self.set_extra_child(box)
+
+
+class UpdateReadyDialog(Adw.AlertDialog):
+    """Dialog shown once the new package has been downloaded."""
+
+    def __init__(self, package_path, command: str, **kwargs):
+        super().__init__(
+            heading="Pacchetto scaricato",
+            body=f"Il pacchetto è stato salvato in:\n{package_path}\n\n"
+                 "Fortyfax non installa nulla da sé: completa l'aggiornamento "
+                 "con questo comando.",
+            **kwargs,
+        )
+        self._command = command
+
+        self.add_response("close", "Chiudi")
+        self.add_response("copy", "Copia comando")
+        self.set_response_appearance("copy", Adw.ResponseAppearance.SUGGESTED)
+        self.set_default_response("copy")
+        self.set_close_response("close")
+
+        cmd_label = Gtk.Label(
+            label=command,
+            xalign=0,
+            wrap=True,
+            wrap_mode=Pango.WrapMode.WORD_CHAR,
+            selectable=True,
+            margin_top=12, margin_start=8, margin_end=8, margin_bottom=8,
+        )
+        cmd_label.add_css_class("monospace")
+        frame = Gtk.Frame()
+        frame.set_child(cmd_label)
+        frame.set_margin_top(12)
+        self.set_extra_child(frame)
+
+    @property
+    def command(self) -> str:
+        return self._command
+
+
 class PreferencesDialog(Adw.PreferencesDialog):
     """Application preferences dialog."""
 
@@ -506,6 +600,22 @@ class PreferencesDialog(Adw.PreferencesDialog):
 
         page.add(notif_group)
 
+        # --- Updates group ---
+        updates_group = Adw.PreferencesGroup(
+            title="Aggiornamenti",
+            description="Controllo delle nuove versioni pubblicate su GitHub",
+        )
+
+        self._updates_switch = Adw.SwitchRow(
+            title="Controlla aggiornamenti all'avvio",
+            subtitle="Al massimo una volta al giorno. Nessun dato viene inviato.",
+        )
+        self._updates_switch.set_active(settings.get("check_updates"))
+        self._updates_switch.connect("notify::active", self._on_updates_changed)
+        updates_group.add(self._updates_switch)
+
+        page.add(updates_group)
+
         # --- SSO Browser group ---
         browser_group = Adw.PreferencesGroup(
             title="Browser SSO",
@@ -542,6 +652,9 @@ class PreferencesDialog(Adw.PreferencesDialog):
 
     def _on_notif_changed(self, row, pspec):
         settings.set("notifications", row.get_active())
+
+    def _on_updates_changed(self, row, pspec):
+        settings.set("check_updates", row.get_active())
 
     def _on_browser_changed(self, row, pspec):
         idx = row.get_selected()
