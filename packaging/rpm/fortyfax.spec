@@ -1,5 +1,5 @@
 Name:           fortyfax
-Version:        2.3.4
+Version:        2.4.0
 Release:        1%{?dist}
 Summary:        GUI for openfortivpn and GlobalProtect with SAML/SSO support
 
@@ -92,6 +92,9 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/com.github.fortyfax.d
 %{_datadir}/icons/hicolor/scalable/apps/com.github.fortyfax.svg
 
 %changelog
+* Thu Sep 17 2026 Fabio Pellizzaro <fabio.pellizzaro@decisyon.com> - 2.4.0-1
+- Richiesta del token 2FA (FortiToken) per Fortinet e notifica dei nuovi rilasci da GitHub
+
 * Thu Jun 04 2026 Fabio Pellizzaro <fabio.pellizzaro@decisyon.com> - 2.3.4-1
 - Packaging nativo conforme a Fedora Guidelines e Debian Policy (rpmbuild/dpkg-buildpackage), pyproject.toml, rimossi install.sh/uninstall.sh
 
